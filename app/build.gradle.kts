@@ -1,8 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
-    id("kotlin-kapt")
-    alias(libs.plugins.kotlin.android) // 加回来
+    id("com.google.devtools.ksp") version "2.3.5"
 }
 
 android {
@@ -39,13 +38,9 @@ android {
     buildFeatures {
         compose = true
     }
-    kotlinOptions {
-        jvmTarget = "11"
-    }
 }
 
 dependencies {
-    // 你原来的 Compose 代码，完全不动
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -54,6 +49,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.junit.ktx)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -62,20 +58,25 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
-    // ====================== 作业专用依赖（无任何报错） ======================
-    // Retrofit 网络（正常用）
+    // Retrofit + Gson
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 
-    // Room 数据库（只留基础包，注解@Entity/@Dao完全生效）
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-
-    // 协程（正常用）
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-
-    // 单元测试（正常用）
+    // test
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
-    testImplementation("androidx.room:room-testing:2.6.1")
+    testImplementation("io.mockk:mockk:1.13.8")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+
+    val room_version = "2.7.1"
+
+    //添加Room依赖，注意确保在 build.gradle.kts 文件中启用了 kapt
+    // Room 核心库
+    implementation("androidx.room:room-runtime:${room_version}")
+    // Room 注解处理器（Kotlin 使用 kapt）
+    ksp("androidx.room:room-compiler:$room_version")
+    // Room 对 Kotlin 协程的支持
+    implementation("androidx.room:room-ktx:$room_version")
+    // Room 的 test
+    testImplementation("androidx.room:room-testing:$room_version")
 }
