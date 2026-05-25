@@ -1,28 +1,25 @@
 package com.example.animalwiki.data.model
 
-import com.example.animalwiki.data.database.entity.AnimalEntity
-
+/**
+ * 应用层使用的动物领域模型（对应本地 JSON 结构）
+ */
 data class Animal(
-    val id: Int,
-    val name: String,
-    val description: String,
-    val category: String
+    val id: String,                     // MD5 哈希值
+    val cnname: List<String>,             // 中文名
+    val latinName: String,              // 拉丁学名
+    val classification: Classification, // 界门纲目科属种
+    val appearance: String,            // 外形
+    val habits: String,                  // 习性
+    val habitat: String,                // 栖息地
+    val diet: String,                   // 食性
 )
 
-fun ApiAnimal.toAnimalEntity(): AnimalEntity {
-    return AnimalEntity(
-        id = this.id,
-        name = this.title,
-        description = this.body,
-        category = "哺乳类"
-    )
-}
-
-fun AnimalEntity.toAnimal(): Animal {
-    return Animal(
-        id = this.id,
-        name = this.name,
-        description = this.description,
-        category = this.category
-    )
-}
+data class Classification(
+    val kingdom: String,
+    val phylum: String,
+    val className: String,  // 注意：class 是 Kotlin 关键字，用 className
+    val order: String,
+    val family: String,
+    val genus: String,
+    val species: String
+)
