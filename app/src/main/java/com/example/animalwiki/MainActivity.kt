@@ -28,6 +28,8 @@ import androidx.navigation.compose.rememberNavController
 import com.example.animalwiki.ui.screens.AnimalDetailScreen
 import com.example.animalwiki.ui.screens.AnimalListScreen
 import com.example.animalwiki.ui.screens.CameraScreen // ✅ 添加相机页面导入
+import com.example.animalwiki.ui.screens.FavoriteScreen
+import com.example.animalwiki.ui.screens.HistoryScreen
 import com.example.animalwiki.ui.screens.HomeScreen
 import com.example.animalwiki.ui.theme.AnimalWikiTheme
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
@@ -135,12 +137,23 @@ class MainActivity : ComponentActivity() {
 
                             // 收藏页
                             composable(Screen.Favorites.route) {
-
+                                FavoriteScreen(
+                                    viewModel = viewModel,
+                                    onFavoriteItemClick = { animalId ->
+                                        navController.navigate("detail/$animalId")
+                                    }
+                                )
                             }
 
                             // 历史页
                             composable(Screen.History.route) {
-
+                                HistoryScreen(
+                                    viewModel = viewModel,
+                                    onHistoryItemClick = { animalId ->
+                                        // 点击历史记录跳转到详情页
+                                        navController.navigate("detail/$animalId")
+                                    }
+                                )
                             }
 
                             // 详情页

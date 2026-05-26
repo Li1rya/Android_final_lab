@@ -2,21 +2,37 @@ package com.example.animalwiki.data.repository
 
 import android.content.Context
 import android.util.Log
-import com.example.animalwiki.data.database.AnimalDao
-import com.example.animalwiki.data.database.entity.AnimalEntity
-import com.example.animalwiki.data.local.AnimalSource
-import com.example.animalwiki.data.model.Animal
-import com.example.animalwiki.data.model.Classification
 import com.google.gson.Gson
+import kotlinx.coroutines.flow.Flow
+import com.example.animalwiki.data.database.AnimalDao
+import com.example.animalwiki.data.database.AnimalDatabase
+import com.example.animalwiki.data.database.FavoriteDao
+import com.example.animalwiki.data.database.FavoriteDatabase
+import com.example.animalwiki.data.database.HistoryDao
+import com.example.animalwiki.data.database.HistoryDatabase
+import com.example.animalwiki.data.model.Animal
+import com.example.animalwiki.data.database.entity.AnimalEntity
+import com.example.animalwiki.data.database.entity.FavoriteEntity
+import com.example.animalwiki.data.database.entity.HistoryEntity // 修正为你实际的History包名
+import com.example.animalwiki.data.local.AnimalSource
+import com.example.animalwiki.data.model.Classification
+import com.example.animalwiki.data.model.Favorite
+import com.example.animalwiki.data.model.History
+import com.example.animalwiki.data.model.JsonAnimal
+import kotlinx.coroutines.flow.map
 
-class AnimalRepository(
-    context: Context,
-    private val animalDao: AnimalDao
+
+class AnimalRepository private constructor(
+    private val context: Context,
+    private val animalDao: AnimalDao,
+    private val historyDao: HistoryDao,
+    private val favoriteDao: FavoriteDao
 ) {
     private val animalSource = AnimalSource(context)
     private val gson = Gson()
     private val TAG = "AnimalRepository"
 
+    // ==================== 原有方法完全不变 ====================
     suspend fun initializeDatabase() {
         val count = animalDao.getCount()
         if (count == 0) {
@@ -35,20 +51,12 @@ class AnimalRepository(
         animalDao.getAnimalByName(name)?.toAnimal()
 
     suspend fun searchAnimals(keyword: String): List<Animal> =
-    animalDao.searchAnimals(keyword).map { it.toAnimal() }
+        animalDao.searchAnimals(keyword).map { it.toAnimal() }
 
     suspend fun getAllAnimals(): List<Animal> =
-    animalDao.getAllAnimals().map { it.toAnimal() }
+        animalDao.getAllAnimals().map { it.toAnimal() }
 
-    // ==================== 图片定位 ====================
-
-    /**
-     * 根据拉丁学名获取图片资源 ID 列表
-     * @param latinName 拉丁学名，如 "Ailuropoda melanoleuca"
-     * @param maxImages 最多查找几张（默认 5 张）
-     * @return 有效的 R.drawable.xxx 资源 ID 列表
-     */
-    fun getImageResIds(context: Context, latinName: String, maxImages: Int = 5): List<Int> {
+    fun getImageResIds(latinName: String, maxImages: Int = 5): List<Int> {
         val baseName = latinNameToImageName(latinName)
         val resIds = mutableListOf<Int>()
 
@@ -58,7 +66,6 @@ class AnimalRepository(
             if (resId != 0) {
                 resIds.add(resId)
             } else {
-                // 连续找不到就停止（假设编号连续）
                 if (i > 1) break
             }
         }
@@ -66,23 +73,17 @@ class AnimalRepository(
         return resIds
     }
 
-    /**
-     * 获取单张图片的资源 ID（默认第一张）
-     */
-    fun getImageResId(context: Context, latinName: String, index: Int = 1): Int {
+    fun getImageResId(latinName: String, index: Int = 1): Int {
         val baseName = latinNameToImageName(latinName)
         val imageName = "${baseName}_$index"
         return context.resources.getIdentifier(imageName, "drawable", context.packageName)
     }
 
-    /**
-     * 拉丁学名转驼峰命名图片前缀
-     */
     private fun latinNameToImageName(latinName: String): String {
         return "img_" + latinName
             .trim()
             .lowercase()
-            .split(Regex("[\\s_-]+"))  // 按空格、下划线、连字符分割
+            .split(Regex("[\\s_-]+"))
             .filter { it.isNotBlank() }
             .mapIndexed { index, word ->
                 if (index == 0) word else word.replaceFirstChar { it.uppercase() }
@@ -90,9 +91,7 @@ class AnimalRepository(
             .joinToString("")
     }
 
-    // ==================== 数据转换 ====================
-
-    private fun com.example.animalwiki.data.model.JsonAnimal.toEntity(): AnimalEntity {
+    private fun JsonAnimal.toEntity(): AnimalEntity {
         return AnimalEntity(
             id = id,
             cnname = gson.toJson(cnname),
@@ -139,4 +138,131 @@ class AnimalRepository(
             emptyList()
         }
     }
+
+    // 放在 parseJsonList 方法的后面，和其他转换方法放一起
+    private fun HistoryEntity.toHistory(): History {
+        return History(
+            id = id,
+            animalId = animalId,
+            name = name,
+            category = category,
+            viewTime = viewTime
+        )
+    }
+
+    private fun History.toEntity(): HistoryEntity {
+        return HistoryEntity(
+            id = id,
+            animalId = animalId,
+            name = name,
+            category = category,
+            viewTime = viewTime
+        )
+    }
+
+    // ==================== 历史记录相关方法 ====================
+    suspend fun insertHistory(history: History) {
+        // ✅ 移除原有去重逻辑，每次都插入新记录
+        val count = historyDao.getHistoryCount()
+        if (count >= 100) {
+            // 超过100条时删除最旧的一条
+            historyDao.getOldestHistory()?.let { historyDao.deleteHistory(it) }
+        }
+        // 直接插入新记录，不覆盖旧的
+        historyDao.insertHistory(history.toEntity())
+    }
+
+    fun getAllHistory(): Flow<List<History>> =
+        historyDao.getAllHistory().map { list -> list.map { it.toHistory() } }
+
+    suspend fun deleteHistory(history: History) =
+        historyDao.deleteHistory(history.toEntity())
+
+    suspend fun clearAllHistory() =
+        historyDao.clearAllHistory()
+
+    suspend fun clearAllHistoryCompletely() {
+        HistoryDatabase.getDatabase(context).close()
+        context.deleteDatabase("history_database")
+        HistoryDatabase.resetInstance()
+    }
+
+    // ==================== 新增：收藏记录类型转换方法 ====================
+    private fun FavoriteEntity.toFavorite(): Favorite {
+        return Favorite(
+            id = id,
+            animalId = animalId,
+            name = name,
+            category = category,
+            favoriteTime = favoriteTime
+        )
+    }
+
+    private fun Favorite.toEntity(): FavoriteEntity {
+        return FavoriteEntity(
+            id = id,
+            animalId = animalId,
+            name = name,
+            category = category,
+            favoriteTime = favoriteTime
+        )
+    }
+
+    // ==================== 新增：收藏记录相关方法 ====================
+    suspend fun insertFavorite(favorite: Favorite) {
+        favoriteDao.insertFavorite(favorite.toEntity())
+    }
+
+    fun getAllFavorites(): Flow<List<Favorite>> =
+        favoriteDao.getAllFavorites().map { list -> list.map { it.toFavorite() } }
+
+    suspend fun deleteFavorite(favorite: Favorite) =
+        favoriteDao.deleteFavorite(favorite.toEntity())
+
+    suspend fun clearAllFavorites() =
+        favoriteDao.clearAllFavorites()
+
+    suspend fun getFavoriteByAnimalId(animalId: String): Favorite? =
+        favoriteDao.getFavoriteByAnimalId(animalId)?.toFavorite()
+
+    // 一键切换收藏状态（核心方法）
+    suspend fun toggleFavorite(animal: Animal): Boolean {
+        val existingFavorite = getFavoriteByAnimalId(animal.id)
+        return if (existingFavorite != null) {
+            deleteFavorite(existingFavorite)
+            false
+        } else {
+            val favorite = Favorite(
+                animalId = animal.id,
+                name = animal.cnname.firstOrNull() ?: "未知动物",
+                category = "${animal.classification.className} ${animal.classification.order}"
+            )
+            insertFavorite(favorite)
+            true
+        }
+    }
+
+    // 修改单例方法，添加FavoriteDatabase初始化
+    companion object {
+        @Volatile
+        private var INSTANCE: AnimalRepository? = null
+
+        fun getInstance(context: Context): AnimalRepository {
+            return INSTANCE ?: synchronized(this) {
+                val animalDb = AnimalDatabase.getDatabase(context.applicationContext)
+                val historyDb = HistoryDatabase.getDatabase(context.applicationContext)
+                val favoriteDb = FavoriteDatabase.getDatabase(context.applicationContext) // 新增
+                val instance = AnimalRepository(
+                    context.applicationContext,
+                    animalDb.animalDao(),
+                    historyDb.historyDao(),
+                    favoriteDb.favoriteDao() // 新增
+                )
+                INSTANCE = instance
+                instance
+            }
+        }
+    }
+
+
 }

@@ -5,17 +5,22 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewModelScope
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
 import com.example.animalwiki.data.model.Animal
+import com.example.animalwiki.data.model.History
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
 import kotlinx.coroutines.launch
 
@@ -27,9 +32,24 @@ fun AnimalDetailScreen(
     onBackClick: () -> Unit
 ) {
     val currentAnimal by viewModel.currentAnimal.collectAsState()
+    val isFavorite by viewModel.isFavorite.collectAsState() // 新增：获取收藏状态
 
     LaunchedEffect(animalId) {
         viewModel.getAnimalById(animalId)
+    }
+
+    LaunchedEffect(currentAnimal) {
+        currentAnimal?.let { animal ->
+            viewModel.checkIsFavorite(animal.id)
+            val history = History(
+                animalId = animal.id,
+                name = animal.cnname.firstOrNull() ?: "未知动物",
+                // 从分类信息构造category字段
+                category = "${animal.classification.className} ${animal.classification.order}",
+                viewTime = System.currentTimeMillis()
+            )
+            viewModel.insertHistory(history)
+        }
     }
 
     currentAnimal?.let { animal ->
@@ -48,6 +68,28 @@ fun AnimalDetailScreen(
                                 contentDescription = "返回"
                             )
                         }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = {
+                                // 防止快速重复点击
+                                if (!isFavorite) {
+                                    viewModel.viewModelScope.launch {
+                                        viewModel.toggleFavorite(animal)
+                                    }
+                                } else {
+                                    viewModel.viewModelScope.launch {
+                                        viewModel.toggleFavorite(animal)
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = if (isFavorite) "取消收藏" else "收藏",
+                                tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 )
             }
@@ -58,6 +100,7 @@ fun AnimalDetailScreen(
                     .padding(padding)
                     .verticalScroll(rememberScrollState())
             ) {
+
                 // 图片轮播
                 if (imageResIds.isNotEmpty()) {
                     HorizontalImagePager(imageResIds = imageResIds)
