@@ -12,30 +12,28 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Camera // ✅ 添加相机图标导入
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton // ✅ 添加IconButton导入
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -47,14 +45,16 @@ import com.bumptech.glide.integration.compose.GlideImage
 import com.example.animalwiki.data.model.Animal
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
 
-// 分类数据
+// 分类数据（统一风格，无彩色）
 private val categories = listOf(
     "mammals" to "哺乳类",
     "birds" to "鸟类",
     "reptiles" to "爬行类",
     "amphibians" to "两栖类",
     "fish" to "鱼类",
-    "insects" to "昆虫类"
+    "insects" to "昆虫类",
+    "marine" to "海洋生物",
+    "rare" to "珍稀动物"
 )
 
 @OptIn(ExperimentalGlideComposeApi::class)
@@ -62,33 +62,35 @@ private val categories = listOf(
 fun HomeScreen(
     viewModel: AnimalViewModel,
     onAnimalClick: (String) -> Unit,
-    onCategoryClick: (String) -> Unit
+    onCategoryClick: (String, String) -> Unit,
+    onCameraClick: () -> Unit // ✅ 添加相机点击回调
 ) {
-    // ✅ 修复：使用兼容所有版本的 collectAsState()
     val animals by viewModel.animals.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    // 今日推荐动物（取第一个）
+    // 今日推荐动物（只取第一个，去掉轮播）
     val featuredAnimal = animals.firstOrNull()
 
+    // 整个页面只有一个滚动容器，彻底解决嵌套滑动
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF8FAF5))
+            .background(MaterialTheme.colorScheme.background) // 完全保留你原来的背景色
             .padding(horizontal = 16.dp)
+            .verticalScroll(rememberScrollState()) // 让整个页面可滚动
     ) {
-        // 顶部标题
+        // 顶部标题（字体调大）
         Text(
             text = "动物百科",
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF2E7D32),
+            color = MaterialTheme.colorScheme.primary, // 完全保留原颜色
             modifier = Modifier.padding(top = 24.dp, bottom = 16.dp)
         )
 
-        // 搜索栏
+        // 搜索栏 ✅ 已加回相机按钮
         OutlinedTextField(
             value = searchQuery,
             onValueChange = viewModel::onSearchQueryChange,
@@ -98,30 +100,41 @@ fun HomeScreen(
                 Icon(
                     Icons.Default.Search,
                     contentDescription = "搜索",
-                    tint = Color(0xFF66BB6A)
+                    tint = MaterialTheme.colorScheme.primary // 完全保留原颜色
                 )
+            },
+            trailingIcon = { // ✅ 右侧相机按钮
+                IconButton(onClick = onCameraClick) {
+                    Icon(
+                        Icons.Default.Camera,
+                        contentDescription = "拍照识别",
+                        tint = MaterialTheme.colorScheme.primary // 和搜索图标同色
+                    )
+                }
             },
             singleLine = true,
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF4CAF50),
-                unfocusedBorderColor = Color(0xFFE0E0E0),
-                focusedContainerColor = Color.White,
-                unfocusedContainerColor = Color.White
-            )
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface
+            ) // 完全保留原颜色
         )
 
         Spacer(modifier = Modifier.height(20.dp))
 
         if (isLoading) {
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(400.dp),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = Color(0xFF4CAF50))
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         } else if (searchQuery.isNotBlank()) {
-            // 搜索结果列表
+            // 搜索结果列表（跟随整个页面滑动）
             Text(
                 text = "搜索结果 (${searchResults.size})",
                 style = MaterialTheme.typography.titleMedium,
@@ -129,56 +142,42 @@ fun HomeScreen(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // ✅ 修复：正确传入 searchResults 列表
-                items(searchResults) { animal ->
-                    AnimalGridItem(
-                        animal = animal,
-                        viewModel = viewModel,
-                        onClick = { onAnimalClick(animal.id) }
-                    )
+            // 两列网格布局，无自身滚动
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                searchResults.chunked(2).forEach { rowItems ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        rowItems.forEach { animal ->
+                            Box(modifier = Modifier.weight(1f)) {
+                                AnimalGridItem(
+                                    animal = animal,
+                                    viewModel = viewModel,
+                                    onClick = { onAnimalClick(animal.id) }
+                                )
+                            }
+                        }
+                        if (rowItems.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                    }
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
         } else {
-            // 分类导航
+            // 今日推荐（去掉轮播，只显示一个）
             Text(
-                text = "分类浏览",
+                text = "今日推荐",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(bottom = 20.dp)
-            ) {
-                items(categories) { (id, name) ->
-                    CategoryCard(
-                        name = name,
-                        onClick = { onCategoryClick(id) }
-                    )
-                }
-            }
-
-            // 今日推荐
             featuredAnimal?.let { animal ->
-                Text(
-                    text = "今日推荐",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-
                 val imageResId = viewModel.getAnimalImage(animal, 1)
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp)
-                        .clickable { onAnimalClick(animal.id) },
+                        .height(180.dp),
                     shape = RoundedCornerShape(16.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                 ) {
@@ -194,86 +193,97 @@ fun HomeScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .background(Color(0xFFE8F5E9))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant) // 完全保留原颜色
                             )
                         }
 
-                        // 渐变遮罩
+                        // 顶部渐变遮罩（保证左上角文字清晰）
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .background(
                                     Brush.verticalGradient(
-                                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f)),
-                                        startY = 0.5f
+                                        colors = listOf(Color.Black.copy(alpha = 0.4f), Color.Transparent),
+                                        startY = 0f,
+                                        endY = 0.5f
                                     )
                                 )
                         )
 
-                        // 底部文字
+                        // 文字移到左上角：第一行拉丁学名，第二行中文名
                         Column(
                             modifier = Modifier
-                                .align(Alignment.BottomStart)
+                                .align(Alignment.TopStart)
                                 .padding(16.dp)
                         ) {
                             Text(
-                                text = animal.cnname.firstOrNull() ?: "未知",
-                                color = Color.White,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold
+                                text = animal.latinName,
+                                color = MaterialTheme.colorScheme.primary, // 绿色拉丁学名
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
                             )
                             Text(
-                                text = animal.latinName,
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 12.sp,
+                                text = animal.cnname.firstOrNull() ?: "未知",
+                                color = Color.White,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+
+                        // 右下角箭头按钮（只有点击箭头才跳转）
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(16.dp)
+                                .size(40.dp)
+                                .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
+                                .clickable { onAnimalClick(animal.id) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.ArrowForward,
+                                contentDescription = "查看详情",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(20.dp))
             }
 
-            // 热门动物
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "热门动物",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                TextButton(onClick = { /* 查看全部 */ }) {
-                    Text(
-                        text = "查看全部",
-                        color = Color(0xFF4CAF50),
-                        fontSize = 12.sp
-                    )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 分类浏览（跟随整个页面滑动）
+            Text(
+                text = "分类浏览",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            // 两列网格布局，无自身滚动
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                categories.chunked(2).forEach { rowItems ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        rowItems.forEach { (id, name) ->
+                            Box(modifier = Modifier.weight(1f)) {
+                                CategoryCard(
+                                    name = name,
+                                    onClick = { onCategoryClick(id, name) }
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(top = 12.dp)
-            ) {
-                // ✅ 修复：正确取前6个动物
-                items(if (animals.size > 6) animals.subList(0, 6) else animals) { animal ->
-                    AnimalGridItem(
-                        animal = animal,
-                        viewModel = viewModel,
-                        onClick = { onAnimalClick(animal.id) }
-                    )
-                }
-            }
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
 
+// 完全保留原颜色，美化圆角
 @Composable
 fun CategoryCard(
     name: String,
@@ -281,11 +291,13 @@ fun CategoryCard(
 ) {
     Card(
         modifier = Modifier
-            .width(100.dp)
+            .fillMaxWidth()
             .height(80.dp)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(16.dp), // 美化圆角
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant // 完全保留原颜色
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Box(
@@ -294,14 +306,15 @@ fun CategoryCard(
         ) {
             Text(
                 text = name,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge, // 字体调大
                 fontWeight = FontWeight.Medium,
-                color = Color(0xFF2E7D32)
+                color = MaterialTheme.colorScheme.onSurfaceVariant // 完全保留原颜色
             )
         }
     }
 }
 
+// 完全保留原颜色
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun AnimalGridItem(
@@ -309,7 +322,9 @@ fun AnimalGridItem(
     viewModel: AnimalViewModel,
     onClick: () -> Unit
 ) {
-    val imageResId = viewModel.getAnimalImage(animal, 1)
+    val imageResId = remember(animal.latinName) {
+        viewModel.getAnimalImage(animal, 1)
+    }
 
     Card(
         modifier = Modifier
@@ -318,7 +333,7 @@ fun AnimalGridItem(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface) // 完全保留原颜色
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // 图片
@@ -338,13 +353,13 @@ fun AnimalGridItem(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color(0xFFE8F5E9)),
+                            .background(MaterialTheme.colorScheme.surfaceVariant), // 完全保留原颜色
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = animal.cnname.firstOrNull()?.take(1) ?: "?",
                             style = MaterialTheme.typography.headlineSmall,
-                            color = Color(0xFF4CAF50)
+                            color = MaterialTheme.colorScheme.primary // 完全保留原颜色
                         )
                     }
                 }
@@ -366,7 +381,7 @@ fun AnimalGridItem(
                 Text(
                     text = animal.classification.className,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF757575),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, // 完全保留原颜色
                     maxLines = 1,
                     modifier = Modifier.padding(top = 2.dp)
                 )
