@@ -3,8 +3,10 @@ package com.example.animalwiki.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.animalwiki.data.database.AnimalDatabase
+import com.example.animalwiki.data.database.entity.HistoryEntity
 import com.example.animalwiki.data.model.Animal
+import com.example.animalwiki.data.model.Favorite
+import com.example.animalwiki.data.model.History // 新增导入
 import com.example.animalwiki.data.repository.AnimalRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,8 +15,10 @@ import kotlinx.coroutines.launch
 
 class AnimalViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository: AnimalRepository
+    // 修改：直接获取Repository单例，不再手动创建
+    private val repository = AnimalRepository.getInstance(application)
 
+    // ==================== 原有状态（完全不变） ====================
     private val _animals = MutableStateFlow<List<Animal>>(emptyList())
     val animals: StateFlow<List<Animal>> = _animals.asStateFlow()
 
@@ -30,18 +34,40 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    init {
-        val dao = AnimalDatabase.getDatabase(application).animalDao()
-        repository = AnimalRepository(application, dao)
+    private val _historyList = MutableStateFlow<List<History>>(emptyList())
+    val historyList: StateFlow<List<History>> = _historyList.asStateFlow()
 
+    private val _favoriteList = MutableStateFlow<List<Favorite>>(emptyList())
+    val favoriteList: StateFlow<List<Favorite>> = _favoriteList.asStateFlow()
+
+    private val _isFavorite = MutableStateFlow(false)
+    val isFavorite: StateFlow<Boolean> = _isFavorite.asStateFlow()
+
+    // ==================== 初始化 ====================
+    init {
         viewModelScope.launch {
             _isLoading.value = true
             repository.initializeDatabase()
             loadAllAnimals()
             _isLoading.value = false
         }
+
+        // 监听历史记录变化
+        viewModelScope.launch {
+            repository.getAllHistory().collect { historyList ->
+                _historyList.value = historyList
+            }
+        }
+
+        // 新增：监听收藏记录变化
+        viewModelScope.launch {
+            repository.getAllFavorites().collect {
+                _favoriteList.value = it
+            }
+        }
     }
 
+    // ==================== 原有方法（保持不变） ====================
     fun loadAllAnimals() {
         viewModelScope.launch {
             _animals.value = repository.getAllAnimals()
@@ -75,13 +101,56 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** 获取图片资源 ID 列表 */
     fun getAnimalImages(animal: Animal): List<Int> {
-        return repository.getImageResIds(getApplication(), animal.latinName, maxImages = 5)
+        return repository.getImageResIds(animal.latinName, maxImages = 5)
     }
 
-    /** 获取单张图片资源 ID */
     fun getAnimalImage(animal: Animal, index: Int = 1): Int {
-        return repository.getImageResId(getApplication(), animal.latinName, index)
+        return repository.getImageResId(animal.latinName, index)
+    }
+
+    // ==================== 历史记录操作 ====================
+    fun insertHistory(history: History) {
+        viewModelScope.launch {
+            repository.insertHistory(history)
+        }
+    }
+
+    fun deleteHistory(history: History) {
+        viewModelScope.launch {
+            repository.deleteHistory(history)
+        }
+    }
+
+    fun clearAllHistory() {
+        viewModelScope.launch {
+            repository.clearAllHistory()
+        }
+    }
+
+    // ==================== 新增：收藏记录相关操作方法 ====================
+    suspend fun toggleFavorite(animal: Animal): Boolean {
+        val isNowFavorite = repository.toggleFavorite(animal)
+        // 关键：更新本地状态，触发UI刷新
+        _isFavorite.value = isNowFavorite
+        return isNowFavorite
+    }
+
+    fun checkIsFavorite(animalId: String) {
+        viewModelScope.launch {
+            _isFavorite.value = repository.getFavoriteByAnimalId(animalId) != null
+        }
+    }
+
+    fun deleteFavorite(favorite: Favorite) {
+        viewModelScope.launch {
+            repository.deleteFavorite(favorite)
+        }
+    }
+
+    fun clearAllFavorites() {
+        viewModelScope.launch {
+            repository.clearAllFavorites()
+        }
     }
 }

@@ -17,11 +17,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Camera // ✅ 添加相机图标导入
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton // ✅ 添加IconButton导入
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -29,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -59,7 +62,8 @@ private val categories = listOf(
 fun HomeScreen(
     viewModel: AnimalViewModel,
     onAnimalClick: (String) -> Unit,
-    onCategoryClick: (String) -> Unit
+    onCategoryClick: (String, String) -> Unit,
+    onCameraClick: () -> Unit // ✅ 添加相机点击回调
 ) {
     val animals by viewModel.animals.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -69,24 +73,24 @@ fun HomeScreen(
     // 今日推荐动物（只取第一个，去掉轮播）
     val featuredAnimal = animals.firstOrNull()
 
-    // ✅ 整个页面只有一个滚动容器，彻底解决嵌套滑动
+    // 整个页面只有一个滚动容器，彻底解决嵌套滑动
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background) // ✅ 完全保留你原来的背景色
+            .background(MaterialTheme.colorScheme.background) // 完全保留你原来的背景色
             .padding(horizontal = 16.dp)
             .verticalScroll(rememberScrollState()) // 让整个页面可滚动
     ) {
-        // 顶部标题 ✅ 字体调大
+        // 顶部标题（字体调大）
         Text(
             text = "动物百科",
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary, // ✅ 完全保留原颜色
+            color = MaterialTheme.colorScheme.primary, // 完全保留原颜色
             modifier = Modifier.padding(top = 24.dp, bottom = 16.dp)
         )
 
-        // 搜索栏 ✅ 完全保留原颜色
+        // 搜索栏 ✅ 已加回相机按钮
         OutlinedTextField(
             value = searchQuery,
             onValueChange = viewModel::onSearchQueryChange,
@@ -96,8 +100,17 @@ fun HomeScreen(
                 Icon(
                     Icons.Default.Search,
                     contentDescription = "搜索",
-                    tint = MaterialTheme.colorScheme.primary // ✅ 完全保留原颜色
+                    tint = MaterialTheme.colorScheme.primary // 完全保留原颜色
                 )
+            },
+            trailingIcon = { // ✅ 右侧相机按钮
+                IconButton(onClick = onCameraClick) {
+                    Icon(
+                        Icons.Default.Camera,
+                        contentDescription = "拍照识别",
+                        tint = MaterialTheme.colorScheme.primary // 和搜索图标同色
+                    )
+                }
             },
             singleLine = true,
             shape = RoundedCornerShape(12.dp),
@@ -106,7 +119,7 @@ fun HomeScreen(
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline,
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface
-            ) // ✅ 完全保留原颜色
+            ) // 完全保留原颜色
         )
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -121,7 +134,7 @@ fun HomeScreen(
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         } else if (searchQuery.isNotBlank()) {
-            // 搜索结果列表 ✅ 跟随整个页面滑动
+            // 搜索结果列表（跟随整个页面滑动）
             Text(
                 text = "搜索结果 (${searchResults.size})",
                 style = MaterialTheme.typography.titleMedium,
@@ -151,7 +164,7 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
         } else {
-            // 今日推荐 ✅ 去掉轮播，只显示一个
+            // 今日推荐（去掉轮播，只显示一个）
             Text(
                 text = "今日推荐",
                 style = MaterialTheme.typography.titleMedium,
@@ -180,7 +193,7 @@ fun HomeScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .background(MaterialTheme.colorScheme.surfaceVariant) // ✅ 完全保留原颜色
+                                    .background(MaterialTheme.colorScheme.surfaceVariant) // 完全保留原颜色
                             )
                         }
 
@@ -197,7 +210,7 @@ fun HomeScreen(
                                 )
                         )
 
-                        // ✅ 文字移到左上角：第一行拉丁学名，第二行中文名
+                        // 文字移到左上角：第一行拉丁学名，第二行中文名
                         Column(
                             modifier = Modifier
                                 .align(Alignment.TopStart)
@@ -205,7 +218,7 @@ fun HomeScreen(
                         ) {
                             Text(
                                 text = animal.latinName,
-                                color = MaterialTheme.colorScheme.primary, // ✅ 绿色拉丁学名
+                                color = MaterialTheme.colorScheme.primary, // 绿色拉丁学名
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -218,7 +231,7 @@ fun HomeScreen(
                             )
                         }
 
-                        // ✅ 右下角箭头按钮（只有点击箭头才跳转）
+                        // 右下角箭头按钮（只有点击箭头才跳转）
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
@@ -241,7 +254,7 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 分类浏览 ✅ 跟随整个页面滑动
+            // 分类浏览（跟随整个页面滑动）
             Text(
                 text = "分类浏览",
                 style = MaterialTheme.typography.titleMedium,
@@ -257,7 +270,7 @@ fun HomeScreen(
                             Box(modifier = Modifier.weight(1f)) {
                                 CategoryCard(
                                     name = name,
-                                    onClick = { onCategoryClick(id) }
+                                    onClick = { onCategoryClick(id, name) }
                                 )
                             }
                         }
@@ -270,7 +283,7 @@ fun HomeScreen(
     }
 }
 
-// ✅ 完全保留原颜色，美化圆角
+// 完全保留原颜色，美化圆角
 @Composable
 fun CategoryCard(
     name: String,
@@ -281,9 +294,9 @@ fun CategoryCard(
             .fillMaxWidth()
             .height(80.dp)
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp), // ✅ 美化圆角
+        shape = RoundedCornerShape(16.dp), // 美化圆角
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant // ✅ 完全保留原颜色
+            containerColor = MaterialTheme.colorScheme.surfaceVariant // 完全保留原颜色
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -293,15 +306,15 @@ fun CategoryCard(
         ) {
             Text(
                 text = name,
-                style = MaterialTheme.typography.bodyLarge, // ✅ 字体调大
+                style = MaterialTheme.typography.bodyLarge, // 字体调大
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant // ✅ 完全保留原颜色
+                color = MaterialTheme.colorScheme.onSurfaceVariant // 完全保留原颜色
             )
         }
     }
 }
 
-// ✅ 完全保留原颜色
+// 完全保留原颜色
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun AnimalGridItem(
@@ -309,7 +322,9 @@ fun AnimalGridItem(
     viewModel: AnimalViewModel,
     onClick: () -> Unit
 ) {
-    val imageResId = viewModel.getAnimalImage(animal, 1)
+    val imageResId = remember(animal.latinName) {
+        viewModel.getAnimalImage(animal, 1)
+    }
 
     Card(
         modifier = Modifier
@@ -318,7 +333,7 @@ fun AnimalGridItem(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface) // ✅ 完全保留原颜色
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface) // 完全保留原颜色
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // 图片
@@ -338,13 +353,13 @@ fun AnimalGridItem(
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surfaceVariant), // ✅ 完全保留原颜色
+                            .background(MaterialTheme.colorScheme.surfaceVariant), // 完全保留原颜色
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = animal.cnname.firstOrNull()?.take(1) ?: "?",
                             style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.primary // ✅ 完全保留原颜色
+                            color = MaterialTheme.colorScheme.primary // 完全保留原颜色
                         )
                     }
                 }
@@ -366,7 +381,7 @@ fun AnimalGridItem(
                 Text(
                     text = animal.classification.className,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, // ✅ 完全保留原颜色
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, // 完全保留原颜色
                     maxLines = 1,
                     modifier = Modifier.padding(top = 2.dp)
                 )

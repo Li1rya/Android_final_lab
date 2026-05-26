@@ -16,12 +16,10 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        animalDb = AnimalDatabase.getDatabase(this)
-        animalRepository = AnimalRepository(this, animalDb.animalDao())
 
         // 首次启动：从 assets JSON 导入数据到 Room
         CoroutineScope(Dispatchers.IO).launch {
-            animalRepository.initializeDatabase()
+            AnimalRepository.getInstance(this@App).initializeDatabase()
         }
     }
 }
