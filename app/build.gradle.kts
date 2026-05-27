@@ -61,8 +61,18 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
+    // Retrofit 核心
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+
+    // OkHttp（Retrofit 底层，已自动引入，但显式声明可控制版本）
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // 日志拦截器（调试用）
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
     // Gson
     implementation("com.google.code.gson:gson:2.10.1")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
 
 
     // === 单元测试 (test/) ===
@@ -71,12 +81,17 @@ dependencies {
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.2.1")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     testImplementation("androidx.arch.core:core-testing:2.2.0")
+    testImplementation("io.mockk:mockk:1.13.9")
+
+    // Robolectric（在 JVM 中模拟 Android 环境）
+    testImplementation("org.robolectric:robolectric:4.11.1")
 
     // === 仪器测试 (androidTest/) ===
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test:runner:1.5.2")
     androidTestImplementation("androidx.room:room-testing:2.6.1")
     androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 
 
 
@@ -111,4 +126,11 @@ dependencies {
 
     // Glide Compose
     implementation("com.github.bumptech.glide:compose:1.0.0-beta01")
+
+    // CameraX（拍照识别用）
+    val cameraxVersion = "1.3.4"
+    implementation("androidx.camera:camera-core:$cameraxVersion")
+    implementation("androidx.camera:camera-camera2:$cameraxVersion")
+    implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
+    implementation("androidx.camera:camera-view:$cameraxVersion")
 }

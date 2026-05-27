@@ -34,7 +34,6 @@ import com.example.animalwiki.ui.screens.HomeScreen
 import com.example.animalwiki.ui.theme.AnimalWikiTheme
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
 
-// 只保留三个核心页面
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     object Home : Screen("home", "首页", Icons.Default.Home)
     object Favorites : Screen("favorites", "收藏", Icons.Default.Favorite)
@@ -47,7 +46,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             AnimalWikiTheme {
-                // 强制最外层背景为纯白色，彻底解决黑屏
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = Color.White
@@ -55,48 +53,55 @@ class MainActivity : ComponentActivity() {
                     val navController = rememberNavController()
                     val viewModel: AnimalViewModel = viewModel()
 
-                    // 底部导航栏只显示三个页面
                     val bottomNavScreens = listOf(
                         Screen.Home,
                         Screen.Favorites,
                         Screen.History
                     )
 
+                    // 监听当前路由，判断是否需要隐藏底部栏
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentRoute = navBackStackEntry?.destination?.route
+                    val hideBottomBarRoutes = setOf(
+                        "camera",
+                        Screen.Detail.route,
+                        "list/{categoryId}/{categoryName}"
+                    )
+                    val showBottomBar = currentRoute !in hideBottomBarRoutes
+
                     Scaffold(
                         bottomBar = {
-                            NavigationBar(
-                                containerColor = Color.White // 底部导航栏也设为白色
-                            ) {
-                                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                                val currentDestination = navBackStackEntry?.destination
+                            if (showBottomBar) {
+                                NavigationBar(
+                                    containerColor = Color.White
+                                ) {
+                                    val currentDestination = navBackStackEntry?.destination
 
-                                bottomNavScreens.forEach { screen ->
-                                    NavigationBarItem(
-                                        icon = { Icon(screen.icon, contentDescription = screen.title) },
-                                        label = { Text(screen.title) },
-                                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                                        onClick = {
-                                            // ✅ 修复：首页特殊处理，确保永远跳转到真正的首页
-                                            if (screen.route == Screen.Home.route) {
-                                                navController.navigate(Screen.Home.route) {
-                                                    // 弹出所有页面，直到首页，并且不保存中间状态
-                                                    popUpTo(navController.graph.id) {
-                                                        inclusive = false
+                                    bottomNavScreens.forEach { screen ->
+                                        NavigationBarItem(
+                                            icon = { Icon(screen.icon, contentDescription = screen.title) },
+                                            label = { Text(screen.title) },
+                                            selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                                            onClick = {
+                                                if (screen.route == Screen.Home.route) {
+                                                    navController.navigate(Screen.Home.route) {
+                                                        popUpTo(navController.graph.id) {
+                                                            inclusive = false
+                                                        }
+                                                        launchSingleTop = true
                                                     }
-                                                    launchSingleTop = true
-                                                }
-                                            } else {
-                                                // 其他页面保持原有行为
-                                                navController.navigate(screen.route) {
-                                                    popUpTo(Screen.Home.route) {
-                                                        saveState = true
+                                                } else {
+                                                    navController.navigate(screen.route) {
+                                                        popUpTo(Screen.Home.route) {
+                                                            saveState = true
+                                                        }
+                                                        launchSingleTop = true
+                                                        restoreState = true
                                                     }
-                                                    launchSingleTop = true
-                                                    restoreState = true
                                                 }
                                             }
-                                        }
-                                    )
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -108,7 +113,6 @@ class MainActivity : ComponentActivity() {
                                 .fillMaxSize()
                                 .padding(innerPadding)
                         ) {
-                            // 首页 ✅ 已添加相机按钮回调
                             composable(Screen.Home.route) {
                                 HomeScreen(
                                     viewModel = viewModel,
@@ -116,17 +120,14 @@ class MainActivity : ComponentActivity() {
                                         navController.navigate("detail/$animalId")
                                     },
                                     onCategoryClick = { categoryId, categoryName ->
-                                        // 传递分类ID和名称到列表页
                                         navController.navigate("list/$categoryId/$categoryName")
                                     },
                                     onCameraClick = {
-                                        // ✅ 点击相机按钮跳转到相机页面
                                         navController.navigate("camera")
                                     }
                                 )
                             }
 
-                            // 分类浏览页面（带参数路由）
                             composable("list/{categoryId}/{categoryName}") { backStackEntry ->
                                 val categoryId = backStackEntry.arguments?.getString("categoryId") ?: ""
                                 val categoryName = backStackEntry.arguments?.getString("categoryName") ?: "动物列表"
@@ -142,12 +143,10 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            // ✅ 相机页面路由
                             composable("camera") {
                                 CameraScreen(navController = navController)
                             }
 
-                            // 收藏页
                             composable(Screen.Favorites.route) {
                                 FavoriteScreen(
                                     viewModel = viewModel,
@@ -157,18 +156,15 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            // 历史页
                             composable(Screen.History.route) {
                                 HistoryScreen(
                                     viewModel = viewModel,
                                     onHistoryItemClick = { animalId ->
-                                        // 点击历史记录跳转到详情页
                                         navController.navigate("detail/$animalId")
                                     }
                                 )
                             }
 
-                            // 详情页
                             composable(Screen.Detail.route) { backStackEntry ->
                                 val animalId = backStackEntry.arguments?.getString("animalId") ?: ""
                                 AnimalDetailScreen(
