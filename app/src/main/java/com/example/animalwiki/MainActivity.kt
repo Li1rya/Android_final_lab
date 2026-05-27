@@ -27,7 +27,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.animalwiki.ui.screens.AnimalDetailScreen
 import com.example.animalwiki.ui.screens.AnimalListScreen
-import com.example.animalwiki.ui.screens.CameraScreen // ✅ 添加相机页面导入
+import com.example.animalwiki.ui.screens.CameraScreen
 import com.example.animalwiki.ui.screens.FavoriteScreen
 import com.example.animalwiki.ui.screens.HistoryScreen
 import com.example.animalwiki.ui.screens.HomeScreen
@@ -76,12 +76,24 @@ class MainActivity : ComponentActivity() {
                                         label = { Text(screen.title) },
                                         selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                                         onClick = {
-                                            navController.navigate(screen.route) {
-                                                popUpTo(navController.graph.startDestinationId) {
-                                                    saveState = true
+                                            // ✅ 修复：首页特殊处理，确保永远跳转到真正的首页
+                                            if (screen.route == Screen.Home.route) {
+                                                navController.navigate(Screen.Home.route) {
+                                                    // 弹出所有页面，直到首页，并且不保存中间状态
+                                                    popUpTo(navController.graph.id) {
+                                                        inclusive = false
+                                                    }
+                                                    launchSingleTop = true
                                                 }
-                                                launchSingleTop = true
-                                                restoreState = true
+                                            } else {
+                                                // 其他页面保持原有行为
+                                                navController.navigate(screen.route) {
+                                                    popUpTo(Screen.Home.route) {
+                                                        saveState = true
+                                                    }
+                                                    launchSingleTop = true
+                                                    restoreState = true
+                                                }
                                             }
                                         }
                                     )
