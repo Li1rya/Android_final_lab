@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import kotlin.random.Random
+
 
 class AnimalViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -42,6 +45,9 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _isFavorite = MutableStateFlow(false)
     val isFavorite: StateFlow<Boolean> = _isFavorite.asStateFlow()
+
+    private val _dailyRecommendation = MutableStateFlow<Animal?>(null)
+    val dailyRecommendation: StateFlow<Animal?> = _dailyRecommendation.asStateFlow()
 
     // ==================== 初始化 ====================
     init {

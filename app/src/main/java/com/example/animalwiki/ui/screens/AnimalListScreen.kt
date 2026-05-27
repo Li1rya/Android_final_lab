@@ -42,16 +42,15 @@ import com.bumptech.glide.integration.compose.GlideImage
 import com.example.animalwiki.data.model.Animal
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
 
-// 分类ID到生物分类名称的映射（和你首页的分类一一对应）
+// 分类ID到生物分类名称的映射（保持不变）
 private val categoryMap = mapOf(
     "mammals" to "哺乳纲",
     "birds" to "鸟纲",
     "reptiles" to "爬行纲",
     "amphibians" to "两栖纲",
-    "fish" to "鱼纲",
     "insects" to "昆虫纲",
     "marine" to "海洋生物",
-    "rare" to "珍稀动物"
+    "others" to "其他生物"
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalGlideComposeApi::class)
@@ -66,11 +65,30 @@ fun AnimalListScreen(
     val animals by viewModel.animals.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
-    // ✅ 过滤出当前分类下的所有动物
     val filteredAnimals = remember(animals, categoryId) {
-        val targetClassName = categoryMap[categoryId] ?: ""
-        animals.filter { animal ->
-            animal.classification.className == targetClassName
+        when (categoryId) {
+            // 鱼类：同时包含软骨鱼纲和辐鳍鱼纲
+            "fish" -> animals.filter { it.classification.className.endsWith("鱼纲") }
+
+            // ✅ 海洋生物：包含所有海洋生物的生物纲
+            "marine" -> animals.filter { animal ->
+                animal.classification.className in listOf(
+                    "头足纲", "钵水母纲", "立方水母纲", "珊瑚虫纲",
+                    "海星纲", "海参纲", "海胆纲", "海百合纲", "甲壳纲"
+                )
+            }
+
+            "others" -> animals.filter {
+                it.classification.className in listOf(
+                    "寡毛纲", "蛭纲", "腹足纲", "双壳纲"
+                )
+            }
+
+            // 其他分类保持原有精确匹配
+            else -> {
+                val targetClassName = categoryMap[categoryId] ?: ""
+                animals.filter { it.classification.className == targetClassName }
+            }
         }
     }
 
