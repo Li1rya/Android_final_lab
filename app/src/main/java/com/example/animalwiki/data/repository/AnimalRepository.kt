@@ -82,13 +82,10 @@ class AnimalRepository private constructor(
     private fun latinNameToImageName(latinName: String): String {
         return "img_" + latinName
             .trim()
-            .lowercase()
-            .split(Regex("[\\s_-]+"))
-            .filter { it.isNotBlank() }
-            .mapIndexed { index, word ->
-                if (index == 0) word else word.replaceFirstChar { it.uppercase() }
-            }
-            .joinToString("")
+            .lowercase()                    // 全小写
+            .split(Regex("[\\s_-]+"))       // 按空格/下划线/连字符分割
+            .filter { it.isNotBlank() }     // 去掉空片段
+            .joinToString("_")              // ← 改成用下划线连接
     }
 
     private fun JsonAnimal.toEntity(): AnimalEntity {
