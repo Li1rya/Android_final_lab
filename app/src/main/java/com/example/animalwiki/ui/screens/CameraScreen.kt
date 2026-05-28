@@ -494,10 +494,10 @@ fun CameraScreen(
                                 result = result,
                                 onClick = {
                                     val targetId = result.matchedAnimal?.id
-                                        ?: result.taxon.id?.toString()
-                                        ?: return@RecognitionResultItem
-                                    navController.navigate("detail/$targetId")
-                                    resetState()
+                                    if (targetId != null) {
+                                        navController.navigate("detail/$targetId")
+                                        resetState()
+                                    }
                                 }
                             )
                         }
@@ -514,11 +514,8 @@ fun CameraScreen(
                         }
                         TextButton(
                             onClick = {
-                                recognitionResults.firstOrNull()?.let { result ->
-                                    val targetId = result.matchedAnimal?.id
-                                        ?: result.taxon.id?.toString()
-                                        ?: return@let
-                                    navController.navigate("detail/$targetId")
+                                recognitionResults.firstOrNull()?.matchedAnimal?.let { animal ->
+                                    navController.navigate("detail/${animal.id}")
                                     resetState()
                                 }
                             },
@@ -550,22 +547,33 @@ private fun RecognitionResultItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
+            // 中文动物名
             Text(
-                text = result.taxon.preferredCommonName ?: result.taxon.name ?: "未知物种",
+                text = result.name,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
-            Text(
-                text = result.taxon.name ?: "",
-                color = Color.White.copy(alpha = 0.5f),
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 2.dp)
-            )
-            if (result.matchedAnimal != null) {
+            // 拉丁学名（如果匹配到了本地库）
+            result.matchedAnimal?.let { animal ->
+                Text(
+                    text = animal.latinName,
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
                 Text(
                     text = "✅ 已匹配本地数据库",
                     color = MaterialTheme.colorScheme.primary,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+            // 百科简介
+            result.baikeInfo?.description?.let { desc ->
+                Text(
+                    text = desc.take(40) + if (desc.length > 40) "..." else "",
+                    color = Color.White.copy(alpha = 0.4f),
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 4.dp)
                 )

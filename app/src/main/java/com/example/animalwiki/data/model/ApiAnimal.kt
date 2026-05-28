@@ -2,8 +2,38 @@ package com.example.animalwiki.data.model
 
 import com.google.gson.annotations.SerializedName
 
-// ==================== 原有：iNaturalist 搜索 API ====================
+// ==================== 新增：百度动物识别 API ====================
 
+data class BaiduTokenResponse(
+    @SerializedName("access_token") val accessToken: String?,
+    @SerializedName("expires_in") val expiresIn: Long?,      // 有效期，单位秒
+    @SerializedName("error") val error: String?,
+    @SerializedName("error_description") val errorDescription: String?
+)
+
+data class BaiduAnimalResponse(
+    @SerializedName("log_id") val logId: Long?,
+    @SerializedName("result") val result: List<BaiduAnimalResult>?
+)
+
+data class BaiduAnimalResult(
+    @SerializedName("name") val name: String?,           // 动物中文名，如"东北虎"
+    @SerializedName("score") val score: Double?,         // 置信度 0~1
+    @SerializedName("baike_info") val baikeInfo: BaiduBaikeInfo?
+)
+
+data class BaiduBaikeInfo(
+    @SerializedName("baike_url") val baikeUrl: String?,
+    @SerializedName("image_url") val imageUrl: String?,
+    @SerializedName("description") val description: String?
+)
+
+
+
+
+// ==================== 以下接口已经废弃，保留是为了防止编译出错 ========================
+
+// ==================== 原有：iNaturalist 搜索 API ====================
 data class INatResponse(
     @SerializedName("total_results") val totalResults: Int?,
     @SerializedName("page") val page: Int?,

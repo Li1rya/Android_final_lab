@@ -2,31 +2,37 @@ package com.example.animalwiki.ui.viewmodel
 
 import android.app.Application
 import android.graphics.Bitmap
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.animalwiki.data.model.Animal
+import com.example.animalwiki.data.model.BaiduBaikeInfo
 import com.example.animalwiki.data.model.Favorite
 import com.example.animalwiki.data.model.History
-import com.example.animalwiki.data.model.INatTaxon
-import com.example.animalwiki.data.model.SearchMode        // ✅ 新增
+import com.example.animalwiki.data.model.SearchMode
 import com.example.animalwiki.data.network.RetrofitClient
 import com.example.animalwiki.data.repository.AnimalRepository
-import com.example.animalwiki.data.repository.INatRecognitionRepository
+import com.example.animalwiki.data.repository.BaiduRecognitionRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 data class RecognitionResult(
-    val taxon: INatTaxon,
+    val name: String,
     val matchedAnimal: Animal?,
-    val confidence: Float
+    val confidence: Float,
+    val baikeInfo: BaiduBaikeInfo? = null
 )
 
 class AnimalViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = AnimalRepository.getInstance(application)
-    private val recognitionRepository = INatRecognitionRepository(RetrofitClient.apiService)
+
+    private val recognitionRepository = BaiduRecognitionRepository(
+        RetrofitClient.apiService,
+        application
+    )
 
     private val _animals = MutableStateFlow<List<Animal>>(emptyList())
     val animals: StateFlow<List<Animal>> = _animals.asStateFlow()
@@ -43,7 +49,6 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    // ✅ 新增：搜索模式状态
     private val _searchMode = MutableStateFlow(SearchMode.ALL)
     val searchMode: StateFlow<SearchMode> = _searchMode.asStateFlow()
 
@@ -96,7 +101,6 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // ✅ 新增：切换搜索模式，切换后自动用当前关键词重新搜索
     fun onSearchModeChange(mode: SearchMode) {
         _searchMode.value = mode
         if (_searchQuery.value.isNotBlank()) {
@@ -104,7 +108,6 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // ✅ 修改：带模式的搜索
     fun searchAnimals(keyword: String) {
         viewModelScope.launch {
             _searchResults.value = repository.searchAnimals(keyword, _searchMode.value)
@@ -166,23 +169,43 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
             _recognitionResults.value = emptyList()
 
             try {
-                val taxons = recognitionRepository.recognizeAnimal(bitmap)
-                if (taxons.isEmpty()) {
+                Log.d("ViewModel", "开始识别，bitmap=${bitmap.width}x${bitmap.height}")
+                val baiduResults = recognitionRepository.recognizeAnimal(bitmap)
+
+                Log.d("ViewModel", "百度返回原始结果数: ${baiduResults.size}")
+                baiduResults.forEachIndexed { i, r ->
+                    Log.d("ViewModel", "结果[$i]: name=${r.name}, score=${r.score}")
+                }
+
+                if (baiduResults.isEmpty()) {
                     _recognitionError.value = "未能识别出动物，请尝试重新拍摄"
                     return@launch
                 }
+
                 val localAnimals = _animals.value.ifEmpty {
                     repository.getAllAnimals().also { _animals.value = it }
                 }
-                val results = taxons.mapNotNull { taxon ->
-                    val visionScore = taxon.rank?.let { 0.85f } ?: 0.5f
-                    val matched = recognitionRepository.matchWithLocalData(taxon, localAnimals)
+                Log.d("ViewModel", "本地动物数: ${localAnimals.size}")
+
+                val results = baiduResults.mapNotNull { baidu ->
+                    if ((baidu.score ?: 0.0) < 0.05) {
+                        Log.d("ViewModel", "过滤低置信度: ${baidu.name}, score=${baidu.score}")
+                        return@mapNotNull null
+                    }
+
+                    val matched = recognitionRepository.matchWithLocalData(baidu, localAnimals)
                     RecognitionResult(
-                        taxon = taxon,
+                        name = baidu.name ?: "未知动物",
                         matchedAnimal = matched,
-                        confidence = visionScore
+                        confidence = (baidu.score ?: 0.0).toFloat(),
+                        baikeInfo = baidu.baikeInfo
                     )
                 }.sortedByDescending { it.confidence }
+
+                Log.d("ViewModel", "映射后UI结果数: ${results.size}")
+                results.forEachIndexed { i, r ->
+                    Log.d("ViewModel", "UI结果[$i]: name=${r.name}, confidence=${r.confidence}, matched=${r.matchedAnimal != null}")
+                }
 
                 _recognitionResults.value = results
 
@@ -196,7 +219,9 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
                         )
                     )
                 }
+
             } catch (e: Exception) {
+                Log.e("ViewModel", "识别流程异常", e)
                 _recognitionError.value = "识别失败：${e.message}"
             } finally {
                 _isRecognizing.value = false
