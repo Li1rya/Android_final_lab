@@ -1,5 +1,6 @@
 package com.example.animalwiki.data.repository
 
+import android.R.attr.mode
 import android.content.Context
 import android.util.Log
 import com.google.gson.Gson
@@ -11,16 +12,16 @@ import com.example.animalwiki.data.database.FavoriteDatabase
 import com.example.animalwiki.data.database.HistoryDao
 import com.example.animalwiki.data.database.HistoryDatabase
 import com.example.animalwiki.data.model.Animal
+import com.example.animalwiki.data.model.SearchMode        // ✅ 新增
 import com.example.animalwiki.data.database.entity.AnimalEntity
 import com.example.animalwiki.data.database.entity.FavoriteEntity
-import com.example.animalwiki.data.database.entity.HistoryEntity // 修正为你实际的History包名
+import com.example.animalwiki.data.database.entity.HistoryEntity
 import com.example.animalwiki.data.local.AnimalSource
 import com.example.animalwiki.data.model.Classification
 import com.example.animalwiki.data.model.Favorite
 import com.example.animalwiki.data.model.History
 import com.example.animalwiki.data.model.JsonAnimal
 import kotlinx.coroutines.flow.map
-
 
 class AnimalRepository private constructor(
     private val context: Context,
@@ -32,7 +33,6 @@ class AnimalRepository private constructor(
     private val gson = Gson()
     private val TAG = "AnimalRepository"
 
-    // ==================== 原有方法完全不变 ====================
     suspend fun initializeDatabase() {
         val count = animalDao.getCount()
         if (count == 0) {
@@ -50,11 +50,23 @@ class AnimalRepository private constructor(
     suspend fun searchByName(name: String): Animal? =
         animalDao.getAnimalByName(name)?.toAnimal()
 
+    // 原有方法保留，兼容旧调用
     suspend fun searchAnimals(keyword: String): List<Animal> =
-        animalDao.searchAnimals(keyword).map { it.toAnimal() }
+    animalDao.searchAnimals(keyword).map { it.toAnimal() }
+
+    // 新增：带搜索模式的搜索
+    suspend fun searchAnimals(keyword: String, mode: SearchMode): List<Animal> {
+        val entities = when (mode) {
+            SearchMode.CN_NAME -> animalDao.searchByCnName(keyword)
+            SearchMode.LATIN_NAME -> animalDao.searchByLatinName(keyword)
+            SearchMode.CLASSIFICATION -> animalDao.searchByClassification(keyword)
+            SearchMode.ALL -> animalDao.searchAnimals(keyword)
+        }
+        return entities.map { it.toAnimal() }
+    }
 
     suspend fun getAllAnimals(): List<Animal> =
-        animalDao.getAllAnimals().map { it.toAnimal() }
+    animalDao.getAllAnimals().map { it.toAnimal() }
 
     fun getImageResIds(latinName: String, maxImages: Int = 5): List<Int> {
         val baseName = latinNameToImageName(latinName)
@@ -136,7 +148,6 @@ class AnimalRepository private constructor(
         }
     }
 
-    // 放在 parseJsonList 方法的后面，和其他转换方法放一起
     private fun HistoryEntity.toHistory(): History {
         return History(
             id = id,
@@ -157,20 +168,16 @@ class AnimalRepository private constructor(
         )
     }
 
-    // ==================== 历史记录相关方法 ====================
     suspend fun insertHistory(history: History) {
-        // ✅ 移除原有去重逻辑，每次都插入新记录
         val count = historyDao.getHistoryCount()
         if (count >= 100) {
-            // 超过100条时删除最旧的一条
             historyDao.getOldestHistory()?.let { historyDao.deleteHistory(it) }
         }
-        // 直接插入新记录，不覆盖旧的
         historyDao.insertHistory(history.toEntity())
     }
 
     fun getAllHistory(): Flow<List<History>> =
-        historyDao.getAllHistory().map { list -> list.map { it.toHistory() } }
+    historyDao.getAllHistory().map { list -> list.map { it.toHistory() } }
 
     suspend fun deleteHistory(history: History) =
         historyDao.deleteHistory(history.toEntity())
@@ -184,7 +191,6 @@ class AnimalRepository private constructor(
         HistoryDatabase.resetInstance()
     }
 
-    // ==================== 新增：收藏记录类型转换方法 ====================
     private fun FavoriteEntity.toFavorite(): Favorite {
         return Favorite(
             id = id,
@@ -205,7 +211,6 @@ class AnimalRepository private constructor(
         )
     }
 
-    // ==================== 新增：收藏记录相关方法 ====================
     suspend fun insertFavorite(favorite: Favorite) {
         favoriteDao.insertFavorite(favorite.toEntity())
     }
@@ -222,7 +227,6 @@ class AnimalRepository private constructor(
     suspend fun getFavoriteByAnimalId(animalId: String): Favorite? =
         favoriteDao.getFavoriteByAnimalId(animalId)?.toFavorite()
 
-    // 一键切换收藏状态（核心方法）
     suspend fun toggleFavorite(animal: Animal): Boolean {
         val existingFavorite = getFavoriteByAnimalId(animal.id)
         return if (existingFavorite != null) {
@@ -239,7 +243,6 @@ class AnimalRepository private constructor(
         }
     }
 
-    // 修改单例方法，添加FavoriteDatabase初始化
     companion object {
         @Volatile
         private var INSTANCE: AnimalRepository? = null
@@ -248,18 +251,16 @@ class AnimalRepository private constructor(
             return INSTANCE ?: synchronized(this) {
                 val animalDb = AnimalDatabase.getDatabase(context.applicationContext)
                 val historyDb = HistoryDatabase.getDatabase(context.applicationContext)
-                val favoriteDb = FavoriteDatabase.getDatabase(context.applicationContext) // 新增
+                val favoriteDb = FavoriteDatabase.getDatabase(context.applicationContext)
                 val instance = AnimalRepository(
                     context.applicationContext,
                     animalDb.animalDao(),
                     historyDb.historyDao(),
-                    favoriteDb.favoriteDao() // 新增
+                    favoriteDb.favoriteDao()
                 )
                 INSTANCE = instance
                 instance
             }
         }
     }
-
-
 }

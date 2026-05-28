@@ -2,13 +2,13 @@ package com.example.animalwiki.ui.viewmodel
 
 import android.app.Application
 import android.graphics.Bitmap
-import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.animalwiki.data.model.Animal
 import com.example.animalwiki.data.model.Favorite
 import com.example.animalwiki.data.model.History
 import com.example.animalwiki.data.model.INatTaxon
+import com.example.animalwiki.data.model.SearchMode        // ✅ 新增
 import com.example.animalwiki.data.network.RetrofitClient
 import com.example.animalwiki.data.repository.AnimalRepository
 import com.example.animalwiki.data.repository.INatRecognitionRepository
@@ -17,21 +17,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-// 识别结果封装
 data class RecognitionResult(
     val taxon: INatTaxon,
-    val matchedAnimal: Animal?,      // 本地数据库匹配到的动物，可能为 null
-    val confidence: Float            // vision_score 转换后的百分比
+    val matchedAnimal: Animal?,
+    val confidence: Float
 )
 
 class AnimalViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = AnimalRepository.getInstance(application)
-
-    // ✅ 新增：识别仓库（单例或工厂模式）
     private val recognitionRepository = INatRecognitionRepository(RetrofitClient.apiService)
 
-    // ==================== 原有状态（完全不变） ====================
     private val _animals = MutableStateFlow<List<Animal>>(emptyList())
     val animals: StateFlow<List<Animal>> = _animals.asStateFlow()
 
@@ -47,6 +43,10 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    // ✅ 新增：搜索模式状态
+    private val _searchMode = MutableStateFlow(SearchMode.ALL)
+    val searchMode: StateFlow<SearchMode> = _searchMode.asStateFlow()
+
     private val _historyList = MutableStateFlow<List<History>>(emptyList())
     val historyList: StateFlow<List<History>> = _historyList.asStateFlow()
 
@@ -59,7 +59,6 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
     private val _dailyRecommendation = MutableStateFlow<Animal?>(null)
     val dailyRecommendation: StateFlow<Animal?> = _dailyRecommendation.asStateFlow()
 
-    // ==================== 新增：相机识别状态 ====================
     private val _recognitionResults = MutableStateFlow<List<RecognitionResult>>(emptyList())
     val recognitionResults: StateFlow<List<RecognitionResult>> = _recognitionResults.asStateFlow()
 
@@ -69,7 +68,6 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
     private val _recognitionError = MutableStateFlow<String?>(null)
     val recognitionError: StateFlow<String?> = _recognitionError.asStateFlow()
 
-    // ==================== 初始化 ====================
     init {
         viewModelScope.launch {
             _isLoading.value = true
@@ -77,25 +75,16 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
             loadAllAnimals()
             _isLoading.value = false
         }
-
         viewModelScope.launch {
-            repository.getAllHistory().collect { historyList ->
-                _historyList.value = historyList
-            }
+            repository.getAllHistory().collect { _historyList.value = it }
         }
-
         viewModelScope.launch {
-            repository.getAllFavorites().collect {
-                _favoriteList.value = it
-            }
+            repository.getAllFavorites().collect { _favoriteList.value = it }
         }
     }
 
-    // ==================== 原有方法（保持不变） ====================
     fun loadAllAnimals() {
-        viewModelScope.launch {
-            _animals.value = repository.getAllAnimals()
-        }
+        viewModelScope.launch { _animals.value = repository.getAllAnimals() }
     }
 
     fun onSearchQueryChange(query: String) {
@@ -107,22 +96,27 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // ✅ 新增：切换搜索模式，切换后自动用当前关键词重新搜索
+    fun onSearchModeChange(mode: SearchMode) {
+        _searchMode.value = mode
+        if (_searchQuery.value.isNotBlank()) {
+            searchAnimals(_searchQuery.value)
+        }
+    }
+
+    // ✅ 修改：带模式的搜索
     fun searchAnimals(keyword: String) {
         viewModelScope.launch {
-            _searchResults.value = repository.searchAnimals(keyword)
+            _searchResults.value = repository.searchAnimals(keyword, _searchMode.value)
         }
     }
 
     fun getAnimalById(id: String) {
-        viewModelScope.launch {
-            _currentAnimal.value = repository.getAnimalById(id)
-        }
+        viewModelScope.launch { _currentAnimal.value = repository.getAnimalById(id) }
     }
 
     fun getAnimalByName(name: String) {
-        viewModelScope.launch {
-            _currentAnimal.value = repository.searchByName(name)
-        }
+        viewModelScope.launch { _currentAnimal.value = repository.searchByName(name) }
     }
 
     fun getAnimalImages(animal: Animal): List<Int> {
@@ -133,26 +127,18 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
         return repository.getImageResId(animal.latinName, index)
     }
 
-    // ==================== 历史记录操作 ====================
     fun insertHistory(history: History) {
-        viewModelScope.launch {
-            repository.insertHistory(history)
-        }
+        viewModelScope.launch { repository.insertHistory(history) }
     }
 
     fun deleteHistory(history: History) {
-        viewModelScope.launch {
-            repository.deleteHistory(history)
-        }
+        viewModelScope.launch { repository.deleteHistory(history) }
     }
 
     fun clearAllHistory() {
-        viewModelScope.launch {
-            repository.clearAllHistory()
-        }
+        viewModelScope.launch { repository.clearAllHistory() }
     }
 
-    // ==================== 收藏记录相关操作方法 ====================
     suspend fun toggleFavorite(animal: Animal): Boolean {
         val isNowFavorite = repository.toggleFavorite(animal)
         _isFavorite.value = isNowFavorite
@@ -166,23 +152,13 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun deleteFavorite(favorite: Favorite) {
-        viewModelScope.launch {
-            repository.deleteFavorite(favorite)
-        }
+        viewModelScope.launch { repository.deleteFavorite(favorite) }
     }
 
     fun clearAllFavorites() {
-        viewModelScope.launch {
-            repository.clearAllFavorites()
-        }
+        viewModelScope.launch { repository.clearAllFavorites() }
     }
 
-    // ==================== 新增：相机识别核心方法 ====================
-
-    /**
-     * 识别图片并匹配本地数据库
-     * @param bitmap 拍照得到的 Bitmap
-     */
     fun recognizeImage(bitmap: Bitmap) {
         viewModelScope.launch {
             _isRecognizing.value = true
@@ -190,24 +166,17 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
             _recognitionResults.value = emptyList()
 
             try {
-                // 1. 调用 iNaturalist API 识别
                 val taxons = recognitionRepository.recognizeAnimal(bitmap)
-
                 if (taxons.isEmpty()) {
                     _recognitionError.value = "未能识别出动物，请尝试重新拍摄"
                     return@launch
                 }
-
-                // 2. 获取本地动物列表用于匹配
                 val localAnimals = _animals.value.ifEmpty {
                     repository.getAllAnimals().also { _animals.value = it }
                 }
-
-                // 3. 逐个匹配并封装结果
                 val results = taxons.mapNotNull { taxon ->
-                    val visionScore = taxon.rank?.let { 0.85f } ?: 0.5f  // 简化处理，实际应从 API 返回解析
+                    val visionScore = taxon.rank?.let { 0.85f } ?: 0.5f
                     val matched = recognitionRepository.matchWithLocalData(taxon, localAnimals)
-
                     RecognitionResult(
                         taxon = taxon,
                         matchedAnimal = matched,
@@ -217,19 +186,16 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
 
                 _recognitionResults.value = results
 
-                // 4. 自动记录历史（如果匹配到本地动物）
                 results.firstOrNull()?.matchedAnimal?.let { animal ->
                     insertHistory(
                         History(
                             animalId = animal.id,
                             name = animal.cnname.firstOrNull() ?: "未知动物",
-                            // 从分类信息构造category字段
                             category = "${animal.classification.className} ${animal.classification.order}",
                             viewTime = System.currentTimeMillis()
                         )
                     )
                 }
-
             } catch (e: Exception) {
                 _recognitionError.value = "识别失败：${e.message}"
             } finally {
@@ -238,17 +204,9 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /**
-     * 清除识别状态（返回相机界面时调用）
-     */
     fun clearRecognitionState() {
         _recognitionResults.value = emptyList()
         _recognitionError.value = null
         _isRecognizing.value = false
     }
-
-    /**
-     * Uri 转 Bitmap 的辅助方法（在 Screen 层调用）
-     */
-    // 注意：Bitmap 处理应该在 Screen 层用 Context 完成，避免内存泄漏
 }

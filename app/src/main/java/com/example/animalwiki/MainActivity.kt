@@ -31,6 +31,7 @@ import com.example.animalwiki.ui.screens.CameraScreen
 import com.example.animalwiki.ui.screens.FavoriteScreen
 import com.example.animalwiki.ui.screens.HistoryScreen
 import com.example.animalwiki.ui.screens.HomeScreen
+import com.example.animalwiki.ui.screens.SearchScreen        // ✅ 新增导入
 import com.example.animalwiki.ui.theme.AnimalWikiTheme
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
 
@@ -59,11 +60,12 @@ class MainActivity : ComponentActivity() {
                         Screen.History
                     )
 
-                    // 监听当前路由，判断是否需要隐藏底部栏
+                    // ✅ 修改：搜索页也隐藏底部导航栏
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
                     val hideBottomBarRoutes = setOf(
                         "camera",
+                        "search",                           // ✅ 新增
                         Screen.Detail.route,
                         "list/{categoryId}/{categoryName}"
                     )
@@ -124,8 +126,16 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onCameraClick = {
                                         navController.navigate("camera")
+                                    },
+                                    onSearchClick = {              // ✅ 新增
+                                        navController.navigate("search")
                                     }
                                 )
+                            }
+
+                            // ✅ 新增：独立搜索页
+                            composable("search") {
+                                SearchScreen(navController = navController)
                             }
 
                             composable("list/{categoryId}/{categoryName}") { backStackEntry ->
