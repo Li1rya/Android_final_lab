@@ -4,9 +4,14 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -89,6 +94,8 @@ fun CameraScreen(
     var hasCameraPermission by remember { mutableStateOf(false) }
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isCapturing by remember { mutableStateOf(false) }
+    var isFlashOn by remember { mutableStateOf(false) }
+    var cameraInstance by remember { mutableStateOf<Camera?>(null) }
 
     // CameraX 核心组件
     val imageCapture = remember { ImageCapture.Builder().build() }
@@ -111,7 +118,29 @@ fun CameraScreen(
         }
     }
 
-    // 绑定 CameraX 生命周期（权限变化后自动重绑）
+    // 相册选择器：选图后自动识别
+    val galleryLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    ImageDecoder.decodeBitmap(
+                        ImageDecoder.createSource(context.contentResolver, it)
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+                }
+                capturedBitmap = bitmap
+                viewModel.recognizeImage(bitmap)
+            } catch (e: Exception) {
+                Toast.makeText(context, "图片加载失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // 绑定 CameraX 生命周期
     DisposableEffect(hasCameraPermission, lifecycleOwner) {
         if (!hasCameraPermission) return@DisposableEffect onDispose {}
 
@@ -128,12 +157,14 @@ fun CameraScreen(
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
             try {
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
+                val cam = cameraProvider.bindToLifecycle(
                     lifecycleOwner,
                     cameraSelector,
                     preview,
                     imageCapture
                 )
+                cameraInstance = cam
+                cam.cameraControl.enableTorch(isFlashOn)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -145,6 +176,11 @@ fun CameraScreen(
                 cameraProviderFuture.get().unbindAll()
             } catch (_: Exception) { }
         }
+    }
+
+    // 闪光灯状态变化时单独控制 torch，不重新绑定相机
+    LaunchedEffect(isFlashOn, cameraInstance) {
+        cameraInstance?.cameraControl?.enableTorch(isFlashOn)
     }
 
     // 扫描动画
@@ -196,8 +232,8 @@ fun CameraScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // 1. 相机预览层（全屏）
-        if (hasCameraPermission && recognitionResults.isEmpty()) {
+        // 1. 相机预览层 —— 关键修复：capturedBitmap != null 时隐藏，画面冻结
+        if (hasCameraPermission && recognitionResults.isEmpty() && capturedBitmap == null) {
             AndroidView(
                 factory = { previewView },
                 modifier = Modifier.fillMaxSize()
@@ -222,7 +258,7 @@ fun CameraScreen(
         }
 
         // 2. 扫描框覆盖层（仅在预览时显示）
-        if (hasCameraPermission && recognitionResults.isEmpty() && !isRecognizing) {
+        if (hasCameraPermission && recognitionResults.isEmpty() && !isRecognizing && capturedBitmap == null) {
             Box(
                 modifier = Modifier
                     .size(288.dp)
@@ -297,19 +333,21 @@ fun CameraScreen(
                 )
             }
 
+            // 闪光灯开关：黄色=开，白色=关
             Icon(
-                Icons.Default.FlashOn,
-                contentDescription = "闪光灯",
-                tint = Color.White,
+                imageVector = Icons.Default.FlashOn,
+                contentDescription = if (isFlashOn) "关闭闪光灯" else "打开闪光灯",
+                tint = if (isFlashOn) Color.Yellow else Color.White,
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
                     .background(Color.Black.copy(alpha = 0.4f))
                     .padding(8.dp)
+                    .clickable { isFlashOn = !isFlashOn }
             )
         }
 
-        // 4. 底部控制栏（快门 + 提示）
+        // 4. 底部控制栏（快门 + 相册 + 提示）
         if (recognitionResults.isEmpty()) {
             Column(
                 modifier = Modifier
@@ -347,7 +385,11 @@ fun CameraScreen(
                     horizontalArrangement = Arrangement.SpaceAround,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // 相册按钮：点击打开系统相册
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.clickable { galleryLauncher.launch("image/*") }
+                    ) {
                         Icon(
                             Icons.Default.Image,
                             contentDescription = "相册",
@@ -444,7 +486,7 @@ fun CameraScreen(
                         color = Color.White.copy(alpha = 0.8f)
                     )
                     TextButton(
-                        onClick = { viewModel.clearRecognitionState() },
+                        onClick = { resetState() },   // ← 修复：用 resetState 恢复预览
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
@@ -547,14 +589,12 @@ private fun RecognitionResultItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            // 中文动物名
             Text(
                 text = result.name,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
-            // 拉丁学名（如果匹配到了本地库）
             result.matchedAnimal?.let { animal ->
                 Text(
                     text = animal.latinName,
@@ -569,7 +609,6 @@ private fun RecognitionResultItem(
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
-            // 百科简介
             result.baikeInfo?.description?.let { desc ->
                 Text(
                     text = desc.take(40) + if (desc.length > 40) "..." else "",
