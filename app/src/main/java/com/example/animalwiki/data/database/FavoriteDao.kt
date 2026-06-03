@@ -19,6 +19,9 @@ interface FavoriteDao {
     @Delete
     suspend fun deleteFavorite(favorite: FavoriteEntity)
 
+    @Query("SELECT * FROM favorites WHERE folderId = :folderId ORDER BY favoriteTime DESC")
+    fun getFavoritesByFolder(folderId: Long): Flow<List<FavoriteEntity>>
+
     @Query("DELETE FROM favorites")
     suspend fun clearAllFavorites()
 

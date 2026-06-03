@@ -9,25 +9,30 @@ import com.example.animalwiki.data.database.AnimalDao
 import com.example.animalwiki.data.database.AnimalDatabase
 import com.example.animalwiki.data.database.FavoriteDao
 import com.example.animalwiki.data.database.FavoriteDatabase
+import com.example.animalwiki.data.database.FolderDao
 import com.example.animalwiki.data.database.HistoryDao
 import com.example.animalwiki.data.database.HistoryDatabase
 import com.example.animalwiki.data.model.Animal
 import com.example.animalwiki.data.model.SearchMode        // ✅ 新增
 import com.example.animalwiki.data.database.entity.AnimalEntity
 import com.example.animalwiki.data.database.entity.FavoriteEntity
+import com.example.animalwiki.data.database.entity.FolderEntity
 import com.example.animalwiki.data.database.entity.HistoryEntity
 import com.example.animalwiki.data.local.AnimalSource
 import com.example.animalwiki.data.model.Classification
 import com.example.animalwiki.data.model.Favorite
 import com.example.animalwiki.data.model.History
+import com.example.animalwiki.data.model.Folder
 import com.example.animalwiki.data.model.JsonAnimal
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class AnimalRepository private constructor(
     private val context: Context,
     private val animalDao: AnimalDao,
     private val historyDao: HistoryDao,
-    private val favoriteDao: FavoriteDao
+    private val favoriteDao: FavoriteDao,
+    private val folderDao: FolderDao
 ) {
     private val animalSource = AnimalSource(context)
     private val gson = Gson()
@@ -42,6 +47,7 @@ class AnimalRepository private constructor(
             animalDao.insertAll(entities)
             Log.d(TAG, "导入完成，共 ${entities.size} 条")
         }
+        initDefaultFolder()
     }
 
     suspend fun getAnimalById(id: String): Animal? =
@@ -197,7 +203,8 @@ class AnimalRepository private constructor(
             animalId = animalId,
             name = name,
             category = category,
-            favoriteTime = favoriteTime
+            favoriteTime = favoriteTime,
+            folderId =folderId
         )
     }
 
@@ -207,8 +214,89 @@ class AnimalRepository private constructor(
             animalId = animalId,
             name = name,
             category = category,
-            favoriteTime = favoriteTime
+            favoriteTime = favoriteTime,
+            folderId =folderId
         )
+    }
+
+    private fun FolderEntity.toFolder(): Folder {
+        return Folder(
+            id = id,
+            name = name,
+            createTime = createTime,
+            isDefault = isDefault // ✅ 同步转换
+        )
+    }
+
+    private fun Folder.toEntity(): FolderEntity {
+        return FolderEntity(
+            id = id,
+            name = name,
+            createTime = createTime,
+            isDefault = isDefault // ✅ 同步转换
+        )
+    }
+
+
+
+
+    // AnimalRepository.kt
+    suspend fun insertFolder(name: String) {
+        val trimmedName = name.trim()
+        // ✅ 禁止创建名为"默认收藏夹"的收藏夹
+        if (trimmedName == "默认收藏夹") {
+            return
+        }
+        // ✅ 禁止创建默认收藏夹（isDefault永远为false）
+        folderDao.insertFolder(
+            FolderEntity(
+                name = trimmedName,
+                isDefault = false
+            )
+        )
+    }
+
+    // AnimalRepository.kt
+// ✅ 修改为返回Boolean，表示是否删除成功
+    suspend fun deleteFolder(folder: Folder): Boolean {
+        if (folder.isDefault) {
+            return false // 默认收藏夹，删除失败
+        }
+        folderDao.moveFavoritesToDefault(folder.id)
+        folderDao.deleteFolder(folder.toEntity())
+        return true // 删除成功
+    }
+
+    // ✅ 正确的按收藏夹查询收藏
+    fun getFavoritesByFolder(folderId: Long): Flow<List<Favorite>> {
+        return favoriteDao.getFavoritesByFolder(folderId)
+            .map { entityList -> entityList.map { it.toFavorite() } }
+    }
+
+    // ✅ 正确的获取所有收藏夹
+    fun getAllFolders(): Flow<List<Folder>> {
+        return folderDao.getAllFolders()
+            .map { entityList -> entityList.map { it.toFolder() } }
+    }
+
+
+    suspend fun initDefaultFolder() {
+        // 1. 先删除所有重复的默认收藏夹，只保留一个
+        folderDao.deleteDuplicateDefaultFolders()
+
+        // 2. 检查是否存在默认收藏夹
+        val defaultCount = folderDao.countDefaultFolders()
+
+        // 3. 如果不存在，创建唯一的默认收藏夹
+        if (defaultCount == 0) {
+            folderDao.insertFolder(
+                FolderEntity(
+                    name = "默认收藏夹",
+                    createTime = 0,
+                    isDefault = true // ✅ 标记为默认收藏夹
+                )
+            )
+        }
     }
 
     suspend fun insertFavorite(favorite: Favorite) {
@@ -227,19 +315,35 @@ class AnimalRepository private constructor(
     suspend fun getFavoriteByAnimalId(animalId: String): Favorite? =
         favoriteDao.getFavoriteByAnimalId(animalId)?.toFavorite()
 
+    // ✅ 修改后的toggleFavorite：只处理取消收藏，添加收藏由addToFavorite完成
     suspend fun toggleFavorite(animal: Animal): Boolean {
         val existingFavorite = getFavoriteByAnimalId(animal.id)
         return if (existingFavorite != null) {
+            // 已收藏：执行取消操作
             deleteFavorite(existingFavorite)
-            false
+            false // 返回新状态：未收藏
         } else {
+            // ❌ 未收藏：不再自动添加到默认收藏夹
+            // 现在需要用户在UI层选择收藏夹后，调用addToFavorite
+            false
+        }
+    }
+
+    // ✅ 新增：添加到指定收藏夹（核心新函数）
+    suspend fun addToFavorite(animal: Animal, folderId: Long = 0): Boolean {
+        val existingFavorite = getFavoriteByAnimalId(animal.id)
+        return if (existingFavorite == null) {
             val favorite = Favorite(
                 animalId = animal.id,
                 name = animal.cnname.firstOrNull() ?: "未知动物",
-                category = "${animal.classification.className} ${animal.classification.order}"
+                category = "${animal.classification.className} ${animal.classification.order}",
+                folderId = folderId // ✅ 使用传入的收藏夹ID
             )
             insertFavorite(favorite)
-            true
+            true // 返回新状态：已收藏
+        } else {
+            // 已收藏：返回false，不重复添加
+            false
         }
     }
 
@@ -256,7 +360,8 @@ class AnimalRepository private constructor(
                     context.applicationContext,
                     animalDb.animalDao(),
                     historyDb.historyDao(),
-                    favoriteDb.favoriteDao()
+                    favoriteDb.favoriteDao(),
+                    favoriteDb.folderDao()
                 )
                 INSTANCE = instance
                 instance

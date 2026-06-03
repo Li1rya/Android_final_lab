@@ -1,7 +1,9 @@
 package com.example.animalwiki.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -24,6 +26,10 @@ import com.example.animalwiki.data.model.History
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
 import kotlinx.coroutines.launch
 
+// ✅ 新增：底部弹窗相关导入
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalGlideComposeApi::class)
 @Composable
 fun AnimalDetailScreen(
@@ -32,7 +38,14 @@ fun AnimalDetailScreen(
     onBackClick: () -> Unit
 ) {
     val currentAnimal by viewModel.currentAnimal.collectAsState()
-    val isFavorite by viewModel.isFavorite.collectAsState() // 新增：获取收藏状态
+    val isFavorite by viewModel.isFavorite.collectAsState()
+    // ✅ 新增：获取收藏夹列表
+    val folderList by viewModel.folderList.collectAsState()
+
+    // ✅ 新增：底部弹窗状态
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+    var showSelectFolderSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(animalId) {
         viewModel.getAnimalById(animalId)
@@ -44,7 +57,6 @@ fun AnimalDetailScreen(
             val history = History(
                 animalId = animal.id,
                 name = animal.cnname.firstOrNull() ?: "未知动物",
-                // 从分类信息构造category字段
                 category = "${animal.classification.className} ${animal.classification.order}",
                 viewTime = System.currentTimeMillis()
             )
@@ -70,16 +82,16 @@ fun AnimalDetailScreen(
                         }
                     },
                     actions = {
+                        // ✅ 修改后的收藏按钮逻辑
                         IconButton(
                             onClick = {
-                                // 防止快速重复点击
-                                if (!isFavorite) {
-                                    viewModel.viewModelScope.launch {
+                                viewModel.viewModelScope.launch {
+                                    if (isFavorite) {
+                                        // 已收藏：直接取消
                                         viewModel.toggleFavorite(animal)
-                                    }
-                                } else {
-                                    viewModel.viewModelScope.launch {
-                                        viewModel.toggleFavorite(animal)
+                                    } else {
+                                        // 未收藏：弹出选择收藏夹窗口
+                                        showSelectFolderSheet = true
                                     }
                                 }
                             }
@@ -175,6 +187,48 @@ fun AnimalDetailScreen(
                 }
             }
         }
+
+        // ✅ 新增：选择收藏夹底部弹窗
+        if (showSelectFolderSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showSelectFolderSheet = false },
+                sheetState = sheetState
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "选择收藏夹",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    // AnimalDetailScreen.kt中选择收藏夹的点击逻辑
+                    folderList.forEach { folder ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.viewModelScope.launch {
+                                        // ✅ 正确传入选中的收藏夹id
+                                        viewModel.addToFavorite(animal, folder.id)
+                                    }
+                                    scope.launch { sheetState.hide() }.invokeOnCompletion {
+                                        showSelectFolderSheet = false
+                                    }
+                                }
+                        ) {
+                            Text(text = folder.name, modifier = Modifier.padding(16.dp))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+        }
     } ?: run {
         // 加载中或数据为空
         Box(
@@ -186,6 +240,7 @@ fun AnimalDetailScreen(
     }
 }
 
+// 以下所有原有组件完全不变
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun HorizontalImagePager(imageResIds: List<Int>) {

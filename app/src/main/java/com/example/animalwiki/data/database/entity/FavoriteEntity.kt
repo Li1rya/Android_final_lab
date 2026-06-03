@@ -9,5 +9,6 @@ data class FavoriteEntity(
     val animalId: String,
     val name: String,
     val category: String,
-    val favoriteTime: Long = System.currentTimeMillis()
+    val favoriteTime: Long = System.currentTimeMillis(),
+    val folderId: Long=0
 )

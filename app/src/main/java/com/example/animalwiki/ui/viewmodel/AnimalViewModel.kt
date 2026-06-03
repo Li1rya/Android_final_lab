@@ -8,15 +8,20 @@ import androidx.lifecycle.viewModelScope
 import com.example.animalwiki.data.model.Animal
 import com.example.animalwiki.data.model.BaiduBaikeInfo
 import com.example.animalwiki.data.model.Favorite
+import com.example.animalwiki.data.model.Folder
 import com.example.animalwiki.data.model.History
 import com.example.animalwiki.data.model.SearchMode
 import com.example.animalwiki.data.network.RetrofitClient
 import com.example.animalwiki.data.repository.AnimalRepository
 import com.example.animalwiki.data.repository.BaiduRecognitionRepository
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+
 
 data class RecognitionResult(
     val name: String,
@@ -58,6 +63,13 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
     private val _favoriteList = MutableStateFlow<List<Favorite>>(emptyList())
     val favoriteList: StateFlow<List<Favorite>> = _favoriteList.asStateFlow()
 
+    private val _folderList = MutableStateFlow<List<Folder>>(emptyList())
+    val folderList: StateFlow<List<Folder>> = _folderList.asStateFlow()
+
+    // ✅ 新增：当前选中的收藏夹ID
+    private val _currentFolderId = MutableStateFlow(0L) // 默认显示默认收藏夹
+    val currentFolderId: StateFlow<Long> = _currentFolderId.asStateFlow()
+
     private val _isFavorite = MutableStateFlow(false)
     val isFavorite: StateFlow<Boolean> = _isFavorite.asStateFlow()
 
@@ -80,11 +92,31 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
             loadAllAnimals()
             _isLoading.value = false
         }
+
         viewModelScope.launch {
             repository.getAllHistory().collect { _historyList.value = it }
         }
+
+        // ✅ 正确写法：用flatMapLatest自动切换收藏列表
         viewModelScope.launch {
-            repository.getAllFavorites().collect { _favoriteList.value = it }
+            _currentFolderId
+                .flatMapLatest { folderId ->
+                    repository.getFavoritesByFolder(folderId)
+                }
+                .collect { favorites ->
+                    _favoriteList.value = favorites
+                }
+        }
+
+        // ✅ 修复收藏夹列表监听，自动切换到第一个收藏夹
+        viewModelScope.launch {
+            repository.getAllFolders().collect { folders ->
+                _folderList.value = folders
+                // 自动设置当前收藏夹为第一个（解决id不匹配问题）
+                if (folders.isNotEmpty() && _currentFolderId.value == 0L) {
+                    _currentFolderId.value = folders.first().id
+                }
+            }
         }
     }
 
@@ -142,10 +174,20 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch { repository.clearAllHistory() }
     }
 
+    // ✅ 修改后的 toggleFavorite：只处理取消收藏
     suspend fun toggleFavorite(animal: Animal): Boolean {
         val isNowFavorite = repository.toggleFavorite(animal)
         _isFavorite.value = isNowFavorite
         return isNowFavorite
+    }
+
+    // ✅ 新增：添加到指定收藏夹（解决报错的核心方法）
+    suspend fun addToFavorite(animal: Animal, folderId: Long): Boolean {
+        val isAdded = repository.addToFavorite(animal, folderId)
+        if (isAdded) {
+            _isFavorite.value = true
+        }
+        return isAdded
     }
 
     fun checkIsFavorite(animalId: String) {
@@ -162,6 +204,33 @@ class AnimalViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch { repository.clearAllFavorites() }
     }
 
+    // ==================== 新增：收藏夹操作方法 ====================
+    fun insertFolder(name: String) {
+        viewModelScope.launch {
+            repository.insertFolder(name)
+        }
+    }
+
+    // AnimalViewModel.kt
+// ✅ 修改为返回Boolean，表示是否删除成功
+    suspend fun deleteFolder(folder: Folder): Boolean {
+        if (folder.isDefault) {
+            return false
+        }
+        return repository.deleteFolder(folder)
+    }
+
+    fun switchFolder(folderId: Long) {
+        _currentFolderId.value = folderId
+    }
+
+    // AnimalViewModel.kt
+// 新增：获取指定收藏夹的收藏列表
+    fun getFavoritesByFolder(folderId: Long): Flow<List<Favorite>> {
+        return repository.getFavoritesByFolder(folderId)
+    }
+
+    // ==================== 以下所有原有方法完全不变 ====================
     fun recognizeImage(bitmap: Bitmap) {
         viewModelScope.launch {
             _isRecognizing.value = true
