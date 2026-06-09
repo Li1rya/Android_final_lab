@@ -1,5 +1,6 @@
 package com.example.animalwiki.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,13 +18,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,11 +34,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
-import com.bumptech.glide.integration.compose.GlideImage
 import com.example.animalwiki.data.model.Animal
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
 import java.util.Calendar
@@ -56,14 +54,13 @@ private val categories = listOf(
     "others" to "其他生物"
 )
 
-@OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun HomeScreen(
     viewModel: AnimalViewModel,
     onAnimalClick: (String) -> Unit,
     onCategoryClick: (String, String) -> Unit,
     onCameraClick: () -> Unit,
-    onSearchClick: () -> Unit        // ✅ 新增：搜索入口回调
+    onSearchClick: () -> Unit
 ) {
     val animals by viewModel.animals.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -90,7 +87,6 @@ fun HomeScreen(
             .padding(horizontal = 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        // ✅ 修改：顶部标题栏 + 功能按钮
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -104,26 +100,8 @@ fun HomeScreen(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
-
-            Row {
-                IconButton(onClick = onSearchClick) {
-                    Icon(
-                        Icons.Default.Search,
-                        contentDescription = "搜索",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-                IconButton(onClick = onCameraClick) {
-                    Icon(
-                        Icons.Default.Camera,
-                        contentDescription = "拍照识别",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
         }
 
-        // ✅ 新增：搜索入口卡片（点击跳转搜索页）
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -166,7 +144,6 @@ fun HomeScreen(
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         } else {
-            // 今日推荐
             Text(
                 text = "今日推荐",
                 style = MaterialTheme.typography.titleMedium,
@@ -175,7 +152,9 @@ fun HomeScreen(
             )
 
             dailyRecommendation?.let { animal ->
-                val imageResId = viewModel.getAnimalImage(animal, 1)
+                val imageResId = remember(animal.id) {
+                    viewModel.getAnimalImage(animal, 1)
+                }
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -185,8 +164,8 @@ fun HomeScreen(
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         if (imageResId != 0) {
-                            GlideImage(
-                                model = imageResId,
+                            Image(
+                                painter = painterResource(id = imageResId),
                                 contentDescription = animal.cnname.firstOrNull(),
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
@@ -253,7 +232,6 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 分类浏览
             Text(
                 text = "分类浏览",
                 style = MaterialTheme.typography.titleMedium,
@@ -311,14 +289,13 @@ fun CategoryCard(
     }
 }
 
-@OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun AnimalGridItem(
     animal: Animal,
     viewModel: AnimalViewModel,
     onClick: () -> Unit
 ) {
-    val imageResId = remember(animal.latinName) {
+    val imageResId = remember(animal.id) {
         viewModel.getAnimalImage(animal, 1)
     }
 
@@ -338,8 +315,8 @@ fun AnimalGridItem(
                     .height(100.dp)
             ) {
                 if (imageResId != 0) {
-                    GlideImage(
-                        model = imageResId,
+                    Image(
+                        painter = painterResource(id = imageResId),
                         contentDescription = animal.cnname.firstOrNull(),
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop

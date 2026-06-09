@@ -1,5 +1,6 @@
 package com.example.animalwiki.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,15 +35,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
-import com.bumptech.glide.integration.compose.GlideImage
 import com.example.animalwiki.data.model.Animal
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
 
-// 分类ID到生物分类名称的映射（保持不变）
 private val categoryMap = mapOf(
     "mammals" to "哺乳纲",
     "birds" to "鸟纲",
@@ -53,38 +51,32 @@ private val categoryMap = mapOf(
     "others" to "其他生物"
 )
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalGlideComposeApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnimalListScreen(
     viewModel: AnimalViewModel,
-    categoryId: String, // 从首页传过来的分类ID
-    categoryName: String, // 从首页传过来的分类显示名称
+    categoryId: String,
+    categoryName: String,
     onAnimalClick: (String) -> Unit,
-    onBackClick: () -> Unit // 返回首页的回调
+    onBackClick: () -> Unit
 ) {
     val animals by viewModel.animals.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
     val filteredAnimals = remember(animals, categoryId) {
         when (categoryId) {
-            // 鱼类：同时包含软骨鱼纲和辐鳍鱼纲
             "fish" -> animals.filter { it.classification.className.endsWith("鱼纲") }
-
-            // ✅ 海洋生物：包含所有海洋生物的生物纲
             "marine" -> animals.filter { animal ->
                 animal.classification.className in listOf(
                     "头足纲", "钵水母纲", "立方水母纲", "珊瑚虫纲",
                     "海星纲", "海参纲", "海胆纲", "海百合纲", "甲壳纲"
                 )
             }
-
             "others" -> animals.filter {
                 it.classification.className in listOf(
                     "寡毛纲", "蛭纲", "腹足纲", "双壳纲"
                 )
             }
-
-            // 其他分类保持原有精确匹配
             else -> {
                 val targetClassName = categoryMap[categoryId] ?: ""
                 animals.filter { it.classification.className == targetClassName }
@@ -95,7 +87,7 @@ fun AnimalListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(categoryName) }, // ✅ 左上角显示分类名称
+                title = { Text(categoryName) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(
@@ -120,7 +112,6 @@ fun AnimalListScreen(
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             } else if (filteredAnimals.isEmpty()) {
-                // 分类下暂无动物的空状态
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -137,7 +128,8 @@ fun AnimalListScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(filteredAnimals) { animal ->
+                    // ✅ 添加 key = { it.id }，防止 LazyColumn 复用导致图片错位
+                    items(filteredAnimals, key = { it.id }) { animal ->
                         AnimalListItem(
                             animal = animal,
                             viewModel = viewModel,
@@ -150,14 +142,14 @@ fun AnimalListScreen(
     }
 }
 
-@OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun AnimalListItem(
     animal: Animal,
     viewModel: AnimalViewModel,
     onClick: () -> Unit
 ) {
-    val imageResId = remember(animal.latinName) {
+    // ✅ 用 animal.id（唯一 MD5）作为 remember key，比 latinName 更稳定
+    val imageResId = remember(animal.id) {
         viewModel.getAnimalImage(animal, 1)
     }
 
@@ -173,16 +165,15 @@ fun AnimalListItem(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 图片
             if (imageResId != 0) {
-                GlideImage(
-                    model = imageResId,
+                // ✅ 改用 Compose 原生 painterResource，彻底绕过 Glide 缓存
+                Image(
+                    painter = painterResource(id = imageResId),
                     contentDescription = animal.cnname.firstOrNull(),
                     modifier = Modifier.size(80.dp),
                     contentScale = ContentScale.Crop
                 )
             } else {
-                // 占位图
                 Surface(
                     modifier = Modifier.size(80.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant
@@ -199,7 +190,6 @@ fun AnimalListItem(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // 文字信息
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = animal.cnname.firstOrNull() ?: animal.latinName,
@@ -207,7 +197,6 @@ fun AnimalListItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-
                 Text(
                     text = animal.latinName,
                     style = MaterialTheme.typography.bodySmall,
@@ -215,7 +204,6 @@ fun AnimalListItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-
                 Text(
                     text = animal.classification.className,
                     style = MaterialTheme.typography.bodySmall,

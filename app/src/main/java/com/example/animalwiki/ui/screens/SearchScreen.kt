@@ -1,5 +1,6 @@
 package com.example.animalwiki.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -39,18 +40,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
-import com.bumptech.glide.integration.compose.GlideImage
 import com.example.animalwiki.data.model.Animal
 import com.example.animalwiki.data.model.SearchMode
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
 
-@OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun SearchScreen(
     navController: NavController,
@@ -67,7 +66,6 @@ fun SearchScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp)
     ) {
-        // 顶部栏：返回 + 搜索框 + 相机
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -98,9 +96,7 @@ fun SearchScreen(
                 },
                 trailingIcon = {
                     if (searchQuery.isNotBlank()) {
-                        IconButton(
-                            onClick = { viewModel.onSearchQueryChange("") }
-                        ) {
+                        IconButton(onClick = { viewModel.onSearchQueryChange("") }) {
                             Icon(
                                 Icons.Default.Close,
                                 contentDescription = "清空",
@@ -128,7 +124,6 @@ fun SearchScreen(
             }
         }
 
-        // 搜索模式 Chip（独立搜索页默认一直显示）
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -148,7 +143,6 @@ fun SearchScreen(
             }
         }
 
-        // 搜索结果区域
         when {
             isLoading -> {
                 Box(
@@ -161,7 +155,6 @@ fun SearchScreen(
                 }
             }
             searchQuery.isBlank() -> {
-                // 空状态提示
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -214,7 +207,7 @@ fun SearchScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    items(searchResults) { animal ->
+                    items(searchResults, key = { it.id }) { animal ->
                         AnimalSearchItem(
                             animal = animal,
                             viewModel = viewModel,
@@ -227,14 +220,13 @@ fun SearchScreen(
     }
 }
 
-@OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 private fun AnimalSearchItem(
     animal: Animal,
     viewModel: AnimalViewModel,
     onClick: () -> Unit
 ) {
-    val imageResId = remember(animal.latinName) {
+    val imageResId = remember(animal.id) {
         viewModel.getAnimalImage(animal, 1)
     }
 
@@ -252,7 +244,6 @@ private fun AnimalSearchItem(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 左侧图片
             Box(
                 modifier = Modifier
                     .size(72.dp)
@@ -260,8 +251,8 @@ private fun AnimalSearchItem(
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 if (imageResId != 0) {
-                    GlideImage(
-                        model = imageResId,
+                    Image(
+                        painter = painterResource(id = imageResId),
                         contentDescription = animal.cnname.firstOrNull(),
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -280,7 +271,6 @@ private fun AnimalSearchItem(
                 }
             }
 
-            // 右侧信息
             Column(
                 modifier = Modifier
                     .padding(start = 16.dp)
@@ -308,7 +298,6 @@ private fun AnimalSearchItem(
                 )
             }
 
-            // 右侧箭头
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
