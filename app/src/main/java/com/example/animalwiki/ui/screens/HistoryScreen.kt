@@ -1,5 +1,4 @@
 package com.example.animalwiki.ui.screens
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,12 +18,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,7 +33,6 @@ import com.example.animalwiki.ui.viewmodel.AnimalViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
@@ -42,11 +40,10 @@ fun HistoryScreen(
     onHistoryItemClick: (String) -> Unit
 ) {
     val historyList by viewModel.historyList.collectAsStateWithLifecycle()
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFFFF8FA))
+            .background(MaterialTheme.colorScheme.background)
             .padding(bottom = 80.dp)
     ) {
         if (historyList.isEmpty()) {
@@ -58,12 +55,12 @@ fun HistoryScreen(
                 Text(
                     text = "暂无浏览历史",
                     fontSize = 18.sp,
-                    color = Color(0xFF666666)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = "浏览动物后会在这里显示记录",
                     fontSize = 14.sp,
-                    color = Color(0xFF999999),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }
@@ -82,12 +79,11 @@ fun HistoryScreen(
                             Icon(
                                 Icons.Default.Delete,
                                 contentDescription = "清空历史",
-                                tint = Color(0xFF2E7D32)
+                                tint = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
                 }
-
                 items(historyList, key = { it.id }) { history ->
                     HistoryItem(
                         history = history,
@@ -99,7 +95,6 @@ fun HistoryScreen(
         }
     }
 }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryItem(
@@ -110,7 +105,7 @@ fun HistoryItem(
     Card(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
@@ -125,19 +120,19 @@ fun HistoryItem(
                     text = history.name,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF333333)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = history.category,
                     fontSize = 14.sp,
-                    color = Color(0xFF666666),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
                 )
                 Text(
                     text = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                        .format(Date(history.viewTime)), // ✅ 改为history.viewTime
+                        .format(Date(history.viewTime)),
                     fontSize = 12.sp,
-                    color = Color(0xFF999999),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
@@ -145,7 +140,7 @@ fun HistoryItem(
                 Icon(
                     Icons.Default.Close,
                     contentDescription = "删除",
-                    tint = Color(0xFF999999)
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

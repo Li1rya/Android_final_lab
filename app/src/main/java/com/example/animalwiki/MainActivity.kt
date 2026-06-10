@@ -1,5 +1,5 @@
 package com.example.animalwiki
-
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Camera
@@ -20,13 +21,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.NavHost
@@ -41,27 +50,43 @@ import com.example.animalwiki.ui.screens.HistoryScreen
 import com.example.animalwiki.ui.screens.HomeScreen
 import com.example.animalwiki.ui.screens.ProfileScreen
 import com.example.animalwiki.ui.screens.SearchScreen
+import com.example.animalwiki.ui.screens.SettingsScreen
 import com.example.animalwiki.ui.theme.AnimalWikiTheme
+import com.example.animalwiki.ui.theme.ThemeMode
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
-
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     object Home : Screen("home", "首页", Icons.Default.Home)
     object Profile : Screen("profile", "个人中心", Icons.Default.Person)
     object Detail : Screen("detail/{animalId}", "详情", Icons.Default.Home)
 }
-
 class MainActivity : ComponentActivity() {
+    @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            AnimalWikiTheme {
+            val windowSizeClass = calculateWindowSizeClass(this)
+            val prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+            val savedThemeMode = remember {
+                mutableStateOf(
+                    try {
+                        ThemeMode.valueOf(prefs.getString("theme_mode", ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name)
+                    } catch (e: IllegalArgumentException) {
+                        ThemeMode.SYSTEM
+                    }
+                )
+            }
+            AnimalWikiTheme(
+                themeMode = savedThemeMode.value
+            ) {
+                val colorScheme = MaterialTheme.colorScheme
+                window.statusBarColor = colorScheme.surfaceVariant.toArgb()
+                window.navigationBarColor = colorScheme.surfaceVariant.toArgb()
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
                     val viewModel: AnimalViewModel = viewModel()
-
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
                     val hideBottomBarRoutes = setOf(
@@ -70,20 +95,18 @@ class MainActivity : ComponentActivity() {
                         Screen.Detail.route,
                         "list/{categoryId}/{categoryName}",
                         "favorites",
-                        "history"
+                        "history",
+                        "settings"
                     )
-                    val showBottomBar = currentRoute !in hideBottomBarRoutes
-
+                    val showBottomBar = currentRoute !in hideBottomBarRoutes && windowSizeClass.widthSizeClass == WindowWidthSizeClass.Compact
                     Scaffold(
                         bottomBar = {
                             if (showBottomBar) {
                                 BottomAppBar(
-                                    containerColor = Color.White,
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
                                     tonalElevation = 0.dp
                                 ) {
                                     val currentDestination = navBackStackEntry?.destination
-
-                                    // 首页
                                     IconButton(
                                         onClick = {
                                             navController.navigate(Screen.Home.route) {
@@ -114,8 +137,6 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
                                     }
-
-                                    // 拍照识别（居中，突出显示，嵌入在导航栏内）
                                     IconButton(
                                         onClick = {
                                             navController.navigate("camera")
@@ -134,14 +155,12 @@ class MainActivity : ComponentActivity() {
                                                 Icon(
                                                     imageVector = Icons.Default.Camera,
                                                     contentDescription = "拍照识别",
-                                                    tint = Color.White,
+                                                    tint = MaterialTheme.colorScheme.onPrimary,
                                                     modifier = Modifier.size(28.dp)
                                                 )
                                             }
                                         }
                                     }
-
-                                    // 个人中心
                                     IconButton(
                                         onClick = {
                                             navController.navigate(Screen.Profile.route) {
@@ -201,15 +220,12 @@ class MainActivity : ComponentActivity() {
                                     }
                                 )
                             }
-
                             composable("search") {
                                 SearchScreen(navController = navController)
                             }
-
                             composable("list/{categoryId}/{categoryName}") { backStackEntry ->
                                 val categoryId = backStackEntry.arguments?.getString("categoryId") ?: ""
                                 val categoryName = backStackEntry.arguments?.getString("categoryName") ?: "动物列表"
-
                                 AnimalListScreen(
                                     viewModel = viewModel,
                                     categoryId = categoryId,
@@ -220,18 +236,25 @@ class MainActivity : ComponentActivity() {
                                     onBackClick = { navController.popBackStack() }
                                 )
                             }
-
                             composable("camera") {
                                 CameraScreen(navController = navController)
                             }
-
                             composable(Screen.Profile.route) {
                                 ProfileScreen(
                                     navController = navController,
                                     viewModel = viewModel
                                 )
                             }
-
+                            composable("settings") {
+                                SettingsScreen(
+                                    currentThemeMode = savedThemeMode.value,
+                                    onThemeModeChanged = { newMode ->
+                                        prefs.edit().putString("theme_mode", newMode.name).apply()
+                                        savedThemeMode.value = newMode
+                                    },
+                                    onBackClick = { navController.popBackStack() }
+                                )
+                            }
                             composable("favorites") {
                                 FavoriteScreen(
                                     viewModel = viewModel,
@@ -240,7 +263,6 @@ class MainActivity : ComponentActivity() {
                                     }
                                 )
                             }
-
                             composable("history") {
                                 HistoryScreen(
                                     viewModel = viewModel,
@@ -249,7 +271,6 @@ class MainActivity : ComponentActivity() {
                                     }
                                 )
                             }
-
                             composable(Screen.Detail.route) { backStackEntry ->
                                 val animalId = backStackEntry.arguments?.getString("animalId") ?: ""
                                 AnimalDetailScreen(

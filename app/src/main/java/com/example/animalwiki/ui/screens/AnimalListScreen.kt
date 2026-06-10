@@ -1,5 +1,4 @@
 package com.example.animalwiki.ui.screens
-
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -38,9 +37,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.TopAppBarDefaults
 import com.example.animalwiki.data.model.Animal
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
-
 private val categoryMap = mapOf(
     "mammals" to "哺乳纲",
     "birds" to "鸟纲",
@@ -50,7 +51,6 @@ private val categoryMap = mapOf(
     "marine" to "海洋生物",
     "others" to "其他生物"
 )
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnimalListScreen(
@@ -62,7 +62,6 @@ fun AnimalListScreen(
 ) {
     val animals by viewModel.animals.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-
     val filteredAnimals = remember(animals, categoryId) {
         when (categoryId) {
             "fish" -> animals.filter { it.classification.className.endsWith("鱼纲") }
@@ -83,11 +82,13 @@ fun AnimalListScreen(
             }
         }
     }
-
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(categoryName) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                title = { Text(categoryName, fontSize = 18.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(
@@ -128,7 +129,6 @@ fun AnimalListScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // ✅ 添加 key = { it.id }，防止 LazyColumn 复用导致图片错位
                     items(filteredAnimals, key = { it.id }) { animal ->
                         AnimalListItem(
                             animal = animal,
@@ -141,18 +141,15 @@ fun AnimalListScreen(
         }
     }
 }
-
 @Composable
 fun AnimalListItem(
     animal: Animal,
     viewModel: AnimalViewModel,
     onClick: () -> Unit
 ) {
-    // ✅ 用 animal.id（唯一 MD5）作为 remember key，比 latinName 更稳定
     val imageResId = remember(animal.id) {
         viewModel.getAnimalImage(animal, 1)
     }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -166,7 +163,6 @@ fun AnimalListItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (imageResId != 0) {
-                // ✅ 改用 Compose 原生 painterResource，彻底绕过 Glide 缓存
                 Image(
                     painter = painterResource(id = imageResId),
                     contentDescription = animal.cnname.firstOrNull(),
@@ -187,9 +183,7 @@ fun AnimalListItem(
                     }
                 }
             }
-
             Spacer(modifier = Modifier.width(12.dp))
-
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = animal.cnname.firstOrNull() ?: animal.latinName,

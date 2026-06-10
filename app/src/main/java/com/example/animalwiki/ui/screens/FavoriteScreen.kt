@@ -44,12 +44,15 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.height
 import android.widget.Toast
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.LaunchedEffect
 import com.example.animalwiki.data.model.Folder
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
@@ -83,7 +86,10 @@ fun FavoriteScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("我的收藏") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                title = { Text("我的收藏", fontSize = 18.sp) },
                 actions = {
                     // 新建收藏夹按钮
                     IconButton(onClick = { showNewFolderDialog = true }) {

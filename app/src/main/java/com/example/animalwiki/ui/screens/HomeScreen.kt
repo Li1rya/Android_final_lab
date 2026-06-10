@@ -1,5 +1,4 @@
 package com.example.animalwiki.ui.screens
-
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,7 +41,6 @@ import com.example.animalwiki.data.model.Animal
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
 import java.util.Calendar
 import kotlin.random.Random
-
 private val categories = listOf(
     "mammals" to "哺乳类",
     "birds" to "鸟类",
@@ -53,7 +51,6 @@ private val categories = listOf(
     "marine" to "海洋生物",
     "others" to "其他生物"
 )
-
 @Composable
 fun HomeScreen(
     viewModel: AnimalViewModel,
@@ -64,7 +61,6 @@ fun HomeScreen(
 ) {
     val animals by viewModel.animals.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
-
     val dailyRecommendation = remember(animals) {
         if (animals.isEmpty()) {
             null
@@ -79,7 +75,6 @@ fun HomeScreen(
             animals[randomIndex]
         }
     }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -101,7 +96,6 @@ fun HomeScreen(
                 color = MaterialTheme.colorScheme.primary
             )
         }
-
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -131,9 +125,7 @@ fun HomeScreen(
                 )
             }
         }
-
         Spacer(modifier = Modifier.height(20.dp))
-
         if (isLoading) {
             Box(
                 modifier = Modifier
@@ -150,7 +142,6 @@ fun HomeScreen(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
-
             dailyRecommendation?.let { animal ->
                 val imageResId = remember(animal.id) {
                     viewModel.getAnimalImage(animal, 1)
@@ -177,19 +168,17 @@ fun HomeScreen(
                                     .background(MaterialTheme.colorScheme.surfaceVariant)
                             )
                         }
-
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .background(
                                     Brush.verticalGradient(
-                                        colors = listOf(Color.Black.copy(alpha = 0.4f), Color.Transparent),
+                                        colors = listOf(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), Color.Transparent),
                                         startY = 0f,
                                         endY = 0.5f
                                     )
                                 )
                         )
-
                         Column(
                             modifier = Modifier
                                 .align(Alignment.TopStart)
@@ -203,42 +192,38 @@ fun HomeScreen(
                             )
                             Text(
                                 text = animal.cnname.firstOrNull() ?: "未知",
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(top = 4.dp)
                             )
                         }
-
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
                                 .padding(16.dp)
                                 .size(40.dp)
-                                .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
+                                .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
                                 .clickable { onAnimalClick(animal.id) },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 Icons.Default.ArrowForward,
                                 contentDescription = "查看详情",
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
                     }
                 }
             }
-
             Spacer(modifier = Modifier.height(24.dp))
-
             Text(
                 text = "分类浏览",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
-
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 categories.chunked(2).forEach { rowItems ->
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -253,12 +238,10 @@ fun HomeScreen(
                     }
                 }
             }
-
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
-
 @Composable
 fun CategoryCard(
     name: String,
@@ -288,7 +271,6 @@ fun CategoryCard(
         }
     }
 }
-
 @Composable
 fun AnimalGridItem(
     animal: Animal,
@@ -298,7 +280,6 @@ fun AnimalGridItem(
     val imageResId = remember(animal.id) {
         viewModel.getAnimalImage(animal, 1)
     }
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -336,7 +317,6 @@ fun AnimalGridItem(
                     }
                 }
             }
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()

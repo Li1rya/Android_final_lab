@@ -1,5 +1,4 @@
 package com.example.animalwiki.ui.screens
-
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -78,7 +77,6 @@ import androidx.navigation.NavController
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
 import com.example.animalwiki.ui.viewmodel.RecognitionResult
 import java.io.File
-
 @Composable
 fun CameraScreen(
     navController: NavController,
@@ -86,29 +84,22 @@ fun CameraScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-
     val isRecognizing by viewModel.isRecognizing.collectAsState()
     val recognitionResults by viewModel.recognitionResults.collectAsState()
     val recognitionError by viewModel.recognitionError.collectAsState()
-
     var hasCameraPermission by remember { mutableStateOf(false) }
     var capturedBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var isCapturing by remember { mutableStateOf(false) }
     var isFlashOn by remember { mutableStateOf(false) }
     var cameraInstance by remember { mutableStateOf<Camera?>(null) }
-
-    // CameraX 核心组件
     val imageCapture = remember { ImageCapture.Builder().build() }
     val previewView = remember { PreviewView(context) }
     val executor = remember { ContextCompat.getMainExecutor(context) }
-
-    // 权限检查
     LaunchedEffect(Unit) {
         hasCameraPermission = ContextCompat.checkSelfPermission(
             context, Manifest.permission.CAMERA
         ) == PackageManager.PERMISSION_GRANTED
     }
-
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -117,8 +108,6 @@ fun CameraScreen(
             Toast.makeText(context, "需要相机权限", Toast.LENGTH_SHORT).show()
         }
     }
-
-    // 相册选择器：选图后自动识别
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -139,11 +128,8 @@ fun CameraScreen(
             }
         }
     }
-
-    // 绑定 CameraX 生命周期
     DisposableEffect(hasCameraPermission, lifecycleOwner) {
         if (!hasCameraPermission) return@DisposableEffect onDispose {}
-
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         val listener = Runnable {
             val cameraProvider = try {
@@ -170,20 +156,15 @@ fun CameraScreen(
             }
         }
         cameraProviderFuture.addListener(listener, executor)
-
         onDispose {
             try {
                 cameraProviderFuture.get().unbindAll()
             } catch (_: Exception) { }
         }
     }
-
-    // 闪光灯状态变化时单独控制 torch，不重新绑定相机
     LaunchedEffect(isFlashOn, cameraInstance) {
         cameraInstance?.cameraControl?.enableTorch(isFlashOn)
     }
-
-    // 扫描动画
     val scanY = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         scanY.animateTo(
@@ -194,21 +175,16 @@ fun CameraScreen(
             )
         )
     }
-
     fun resetState() {
         capturedBitmap = null
         viewModel.clearRecognitionState()
     }
-
-    // 拍照并识别
     fun takePhotoAndRecognize() {
         if (isCapturing || isRecognizing) return
         isCapturing = true
-
         val outputDir = context.externalCacheDir ?: context.cacheDir
         val photoFile = File(outputDir, "animal_photo_${System.currentTimeMillis()}.jpg")
         val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
-
         imageCapture.takePicture(
             outputOptions,
             executor,
@@ -230,9 +206,7 @@ fun CameraScreen(
             }
         )
     }
-
     Box(modifier = Modifier.fillMaxSize()) {
-        // 1. 相机预览层 —— 关键修复：capturedBitmap != null 时隐藏，画面冻结
         if (hasCameraPermission && recognitionResults.isEmpty() && capturedBitmap == null) {
             AndroidView(
                 factory = { previewView },
@@ -242,11 +216,11 @@ fun CameraScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black),
+                    .background(MaterialTheme.colorScheme.onSurface),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("需要相机权限", color = Color.White)
+                    Text("需要相机权限", color = MaterialTheme.colorScheme.onPrimary)
                     TextButton(
                         onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) },
                         modifier = Modifier.padding(top = 16.dp)
@@ -256,20 +230,17 @@ fun CameraScreen(
                 }
             }
         }
-
-        // 2. 扫描框覆盖层（仅在预览时显示）
         if (hasCameraPermission && recognitionResults.isEmpty() && !isRecognizing && capturedBitmap == null) {
             Box(
                 modifier = Modifier
                     .size(288.dp)
                     .align(Alignment.Center)
-                    .border(2.dp, Color.White.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
+                    .border(2.dp, MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
             ) {
                 Box(modifier = Modifier.size(32.dp).align(Alignment.TopStart).border(4.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(topStart = 12.dp)))
                 Box(modifier = Modifier.size(32.dp).align(Alignment.TopEnd).border(4.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(topEnd = 12.dp)))
                 Box(modifier = Modifier.size(32.dp).align(Alignment.BottomStart).border(4.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(bottomStart = 12.dp)))
                 Box(modifier = Modifier.size(32.dp).align(Alignment.BottomEnd).border(4.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(bottomEnd = 12.dp)))
-
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -281,8 +252,6 @@ fun CameraScreen(
                 )
             }
         }
-
-        // 3. 顶部工具栏
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -294,21 +263,20 @@ fun CameraScreen(
             Icon(
                 Icons.Default.Close,
                 contentDescription = "关闭",
-                tint = Color.White,
+                tint = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.4f))
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
                     .padding(8.dp)
                     .clickable {
                         viewModel.clearRecognitionState()
                         navController.popBackStack()
                     }
             )
-
             Row(
                 modifier = Modifier
-                    .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
                     .padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -326,28 +294,24 @@ fun CameraScreen(
                         isRecognizing -> "正在识别..."
                         else -> "AI 识别已就绪"
                     },
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 8.dp)
                 )
             }
-
-            // 闪光灯开关：黄色=开，白色=关
             Icon(
                 imageVector = Icons.Default.FlashOn,
                 contentDescription = if (isFlashOn) "关闭闪光灯" else "打开闪光灯",
-                tint = if (isFlashOn) Color.Yellow else Color.White,
+                tint = if (isFlashOn) Color.Yellow else MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.4f))
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f))
                     .padding(8.dp)
                     .clickable { isFlashOn = !isFlashOn }
             )
         }
-
-        // 4. 底部控制栏（快门 + 相册 + 提示）
         if (recognitionResults.isEmpty()) {
             Column(
                 modifier = Modifier
@@ -359,7 +323,7 @@ fun CameraScreen(
                 if (!isRecognizing) {
                     Row(
                         modifier = Modifier
-                            .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -371,13 +335,12 @@ fun CameraScreen(
                         )
                         Text(
                             text = "对准动物并保持稳定，点击快门识别",
-                            color = Color.White.copy(alpha = 0.8f),
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                             fontSize = 10.sp,
                             modifier = Modifier.padding(start = 8.dp)
                         )
                     }
                 }
-
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -385,7 +348,6 @@ fun CameraScreen(
                     horizontalArrangement = Arrangement.SpaceAround,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 相册按钮：点击打开系统相册
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.clickable { galleryLauncher.launch("image/*") }
@@ -393,24 +355,22 @@ fun CameraScreen(
                         Icon(
                             Icons.Default.Image,
                             contentDescription = "相册",
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(28.dp)
                         )
                         Text(
                             text = "相册",
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onPrimary,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(top = 4.dp)
                         )
                     }
-
-                    // 快门按钮
                     Box(
                         modifier = Modifier
                             .size(80.dp)
                             .clip(CircleShape)
-                            .border(4.dp, Color.White)
+                            .border(4.dp, MaterialTheme.colorScheme.onPrimary)
                             .clickable {
                                 if (hasCameraPermission) {
                                     takePhotoAndRecognize()
@@ -425,22 +385,19 @@ fun CameraScreen(
                                 .size(64.dp)
                                 .clip(CircleShape)
                                 .background(
-                                    if (isCapturing || isRecognizing) Color.Gray else Color.White
+                                    if (isCapturing || isRecognizing) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.onPrimary
                                 )
                         )
                     }
-
                     Box(modifier = Modifier.size(48.dp))
                 }
             }
         }
-
-        // 5. 识别中 Loading
         if (isRecognizing) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.7f)),
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -451,15 +408,13 @@ fun CameraScreen(
                     )
                     Text(
                         text = "AI 正在识别...",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.padding(top = 16.dp),
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
         }
-
-        // 6. 识别错误
         if (recognitionError != null) {
             Card(
                 modifier = Modifier
@@ -468,7 +423,7 @@ fun CameraScreen(
                     .align(Alignment.Center),
                 shape = RoundedCornerShape(16.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF2D2D2D))
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
@@ -478,27 +433,25 @@ fun CameraScreen(
                         text = "⚠️ 识别失败",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFFF6B6B)
+                        color = MaterialTheme.colorScheme.error
                     )
                     Text(
                         text = recognitionError!!,
                         modifier = Modifier.padding(top = 12.dp, bottom = 16.dp),
-                        color = Color.White.copy(alpha = 0.8f)
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
                     )
                     TextButton(
-                        onClick = { resetState() },   // ← 修复：用 resetState 恢复预览
+                        onClick = { resetState() },
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
                             .padding(vertical = 12.dp)
                     ) {
-                        Text("重新拍摄", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("重新拍摄", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
-
-        // 7. 识别结果展示
         if (recognitionResults.isNotEmpty()) {
             Card(
                 modifier = Modifier
@@ -507,16 +460,15 @@ fun CameraScreen(
                     .align(Alignment.Center),
                 shape = RoundedCornerShape(20.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Text(
                         text = "🔍 识别结果",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
-
                     capturedBitmap?.let { bitmap ->
                         Image(
                             bitmap = bitmap.asImageBitmap(),
@@ -529,7 +481,6 @@ fun CameraScreen(
                             contentScale = ContentScale.Crop
                         )
                     }
-
                     LazyColumn(modifier = Modifier.height(200.dp)) {
                         items(recognitionResults) { result ->
                             RecognitionResultItem(
@@ -544,7 +495,6 @@ fun CameraScreen(
                             )
                         }
                     }
-
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -552,7 +502,7 @@ fun CameraScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         TextButton(onClick = { resetState() }) {
-                            Text("重新拍摄", color = Color.Gray)
+                            Text("重新拍摄", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         TextButton(
                             onClick = {
@@ -565,7 +515,7 @@ fun CameraScreen(
                                 .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
-                            Text("查看最佳匹配", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("查看最佳匹配", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -573,7 +523,6 @@ fun CameraScreen(
         }
     }
 }
-
 @Composable
 private fun RecognitionResultItem(
     result: RecognitionResult,
@@ -583,7 +532,7 @@ private fun RecognitionResultItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
-            .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -591,14 +540,14 @@ private fun RecognitionResultItem(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = result.name,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
             result.matchedAnimal?.let { animal ->
                 Text(
                     text = animal.latinName,
-                    color = Color.White.copy(alpha = 0.5f),
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f),
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 2.dp)
                 )
@@ -612,7 +561,7 @@ private fun RecognitionResultItem(
             result.baikeInfo?.description?.let { desc ->
                 Text(
                     text = desc.take(40) + if (desc.length > 40) "..." else "",
-                    color = Color.White.copy(alpha = 0.4f),
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f),
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 4.dp)
                 )
@@ -621,13 +570,13 @@ private fun RecognitionResultItem(
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 text = "${(result.confidence * 100).toInt()}%",
-                color = if (result.confidence > 0.7) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary,
+                color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp
             )
             Text(
                 text = "置信度",
-                color = Color.White.copy(alpha = 0.4f),
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f),
                 fontSize = 10.sp
             )
         }

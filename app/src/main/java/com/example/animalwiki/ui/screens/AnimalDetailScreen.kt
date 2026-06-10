@@ -1,8 +1,17 @@
 package com.example.animalwiki.ui.screens
-
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -14,17 +23,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewModelScope
 import com.example.animalwiki.data.model.Animal
 import com.example.animalwiki.data.model.History
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
 import kotlinx.coroutines.launch
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AnimalDetailScreen(
@@ -35,15 +43,12 @@ fun AnimalDetailScreen(
     val currentAnimal by viewModel.currentAnimal.collectAsState()
     val isFavorite by viewModel.isFavorite.collectAsState()
     val folderList by viewModel.folderList.collectAsState()
-
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
     var showSelectFolderSheet by remember { mutableStateOf(false) }
-
     LaunchedEffect(animalId) {
         viewModel.getAnimalById(animalId)
     }
-
     LaunchedEffect(currentAnimal) {
         currentAnimal?.let { animal ->
             viewModel.checkIsFavorite(animal.id)
@@ -56,16 +61,17 @@ fun AnimalDetailScreen(
             viewModel.insertHistory(history)
         }
     }
-
     currentAnimal?.let { animal ->
         val imageResIds = remember(animal.id) {
             viewModel.getAnimalImages(animal)
         }
-
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text(animal.cnname.firstOrNull() ?: "动物详情") },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                    title = { Text(animal.cnname.firstOrNull() ?: "动物详情", fontSize = 18.sp) },
                     navigationIcon = {
                         IconButton(onClick = onBackClick) {
                             Icon(
@@ -89,7 +95,7 @@ fun AnimalDetailScreen(
                             Icon(
                                 imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                                 contentDescription = if (isFavorite) "取消收藏" else "收藏",
-                                tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurface
+                                tint = if (isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -119,14 +125,12 @@ fun AnimalDetailScreen(
                         }
                     }
                 }
-
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = animal.cnname.firstOrNull() ?: "未知",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
-
                     if (animal.cnname.size > 1) {
                         Text(
                             text = "别名：${animal.cnname.drop(1).joinToString("、")}",
@@ -135,27 +139,20 @@ fun AnimalDetailScreen(
                             modifier = Modifier.padding(top = 4.dp)
                         )
                     }
-
                     Text(
                         text = "拉丁学名：${animal.latinName}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(top = 8.dp)
                     )
-
                     Divider(modifier = Modifier.padding(vertical = 16.dp))
-
                     ClassificationCard(classification = animal.classification)
-
                     Divider(modifier = Modifier.padding(vertical = 16.dp))
-
                     InfoSection(title = "外形", content = animal.appearance)
                     InfoSection(title = "习性", content = animal.habits)
                     InfoSection(title = "栖息地", content = animal.habitat)
                     InfoSection(title = "食性", content = animal.diet)
-
                     Spacer(modifier = Modifier.height(16.dp))
-
                     Button(
                         onClick = onBackClick,
                         modifier = Modifier.fillMaxWidth()
@@ -165,7 +162,6 @@ fun AnimalDetailScreen(
                 }
             }
         }
-
         if (showSelectFolderSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showSelectFolderSheet = false },
@@ -182,7 +178,6 @@ fun AnimalDetailScreen(
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
-
                     folderList.forEach { folder ->
                         Card(
                             modifier = Modifier
@@ -199,7 +194,6 @@ fun AnimalDetailScreen(
                             Text(text = folder.name, modifier = Modifier.padding(16.dp))
                         }
                     }
-
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
@@ -213,11 +207,9 @@ fun AnimalDetailScreen(
         }
     }
 }
-
 @Composable
 fun HorizontalImagePager(imageResIds: List<Int>) {
     val pagerState = remember { androidx.compose.foundation.pager.PagerState { imageResIds.size } }
-
     Column {
         androidx.compose.foundation.pager.HorizontalPager(
             state = pagerState,
@@ -232,7 +224,6 @@ fun HorizontalImagePager(imageResIds: List<Int>) {
                 contentScale = ContentScale.Crop
             )
         }
-
         if (imageResIds.size > 1) {
             Row(
                 modifier = Modifier
@@ -262,7 +253,6 @@ fun HorizontalImagePager(imageResIds: List<Int>) {
         }
     }
 }
-
 @Composable
 fun ClassificationCard(classification: com.example.animalwiki.data.model.Classification) {
     Surface(
@@ -287,7 +277,6 @@ fun ClassificationCard(classification: com.example.animalwiki.data.model.Classif
         }
     }
 }
-
 @Composable
 fun ClassificationRow(label: String, value: String) {
     Row(
@@ -307,7 +296,6 @@ fun ClassificationRow(label: String, value: String) {
         )
     }
 }
-
 @Composable
 fun InfoSection(title: String, content: String) {
     Column(modifier = Modifier.padding(vertical = 8.dp)) {
