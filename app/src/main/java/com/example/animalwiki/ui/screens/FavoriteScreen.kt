@@ -45,11 +45,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Divider
+import androidx.compose.runtime.LaunchedEffect
 import com.example.animalwiki.data.model.Folder
 import com.example.animalwiki.ui.viewmodel.AnimalViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.example.animalwiki.data.model.Favorite
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -280,6 +286,7 @@ fun FolderItem(
 ) {
     // 获取当前收藏夹的收藏列表
     val favorites by viewModel.getFavoritesByFolder(folder.id).collectAsStateWithLifecycle(initialValue = emptyList())
+    val context = LocalContext.current
 
     // 箭头旋转动画
     val arrowRotation by animateFloatAsState(
@@ -287,14 +294,59 @@ fun FolderItem(
         label = "arrow rotation"
     )
 
-    // ✅ 外层只有一个Card，包裹整个收藏夹
+    // ==================== 新增：批量选择状态 ====================
+    var isInSelectionMode by remember { mutableStateOf(false) }
+    var selectedFavorites by remember { mutableStateOf<Set<String>>(emptySet()) }
+
+    // 收起收藏夹时自动退出选择模式
+    LaunchedEffect(isExpanded) {
+        if (!isExpanded) {
+            isInSelectionMode = false
+            selectedFavorites = emptySet()
+        }
+    }
+
+    // 单个删除确认对话框状态
+    var showDeleteSingleDialog by remember { mutableStateOf(false) }
+    var favoriteToDelete by remember { mutableStateOf<Favorite?>(null) }
+
+    // 批量删除确认对话框状态
+    var showDeleteBatchDialog by remember { mutableStateOf(false) }
+
+    // ==================== 辅助方法 ====================
+    fun exitSelectionMode() {
+        isInSelectionMode = false
+        selectedFavorites = emptySet()
+    }
+
+    fun toggleSelection(animalId: String) {
+        selectedFavorites = if (selectedFavorites.contains(animalId)) {
+            selectedFavorites - animalId
+        } else {
+            selectedFavorites + animalId
+        }
+        // 如果没有选中任何项，自动退出选择模式
+        if (selectedFavorites.isEmpty()) {
+            exitSelectionMode()
+        }
+    }
+
+    suspend fun deleteSelectedFavorites() {
+        selectedFavorites.forEach { animalId ->
+            val favorite = favorites.find { it.animalId == animalId }
+            favorite?.let { viewModel.deleteFavorite(it) }
+        }
+        exitSelectionMode()
+        Toast.makeText(context, "已删除 ${selectedFavorites.size} 个收藏", Toast.LENGTH_SHORT).show()
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // ✅ 收藏夹标题行：直接在Column里，没有额外的Card包裹
+            // 收藏夹标题行
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -341,14 +393,42 @@ fun FolderItem(
                 }
             }
 
-            // ✅ 展开的收藏列表：直接在Column里，没有额外的Card包裹
+            // 展开的收藏列表
             AnimatedVisibility(visible = isExpanded) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // ✅ 新增：批量选择模式顶部操作栏
+                    if (isInSelectionMode) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "已选中 ${selectedFavorites.size} 项",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Row {
+                                IconButton(onClick = { showDeleteBatchDialog = true }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "删除选中",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                                IconButton(onClick = { exitSelectionMode() }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "取消选择"
+                                    )
+                                }
+                            }
+                        }
+                        Divider(modifier = Modifier.padding(horizontal = 16.dp))
+                    }
+
                     if (favorites.isEmpty()) {
                         Box(
                             modifier = Modifier
@@ -363,31 +443,99 @@ fun FolderItem(
                             )
                         }
                     } else {
-                        favorites.forEach { favorite ->
-                            // ✅ 只有单个收藏项才用Card
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onFavoriteItemClick(favorite.animalId) },
-                                shape = MaterialTheme.shapes.small,
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                )
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(12.dp)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            favorites.forEach { favorite ->
+                                val isSelected = selectedFavorites.contains(favorite.animalId)
+
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            if (isInSelectionMode) {
+                                                toggleSelection(favorite.animalId)
+                                            } else {
+                                                onFavoriteItemClick(favorite.animalId)
+                                            }
+                                        }
+                                        .combinedClickable(
+                                            onClick = {
+                                                if (isInSelectionMode) {
+                                                    toggleSelection(favorite.animalId)
+                                                } else {
+                                                    onFavoriteItemClick(favorite.animalId)
+                                                }
+                                            },
+                                            onLongClick = {
+                                                if (!isInSelectionMode) {
+                                                    isInSelectionMode = true
+                                                    toggleSelection(favorite.animalId)
+                                                }
+                                            }
+                                        ),
+                                    shape = MaterialTheme.shapes.small,
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isSelected) {
+                                            MaterialTheme.colorScheme.primaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.surfaceVariant
+                                        }
+                                    )
                                 ) {
-                                    Text(
-                                        text = favorite.name,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = favorite.category,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(top = 2.dp)
-                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            // ✅ 新增：选择模式下显示复选框
+                                            if (isInSelectionMode) {
+                                                Checkbox(
+                                                    checked = isSelected,
+                                                    onCheckedChange = { toggleSelection(favorite.animalId) },
+                                                    modifier = Modifier.padding(end = 8.dp)
+                                                )
+                                            }
+
+                                            Column {
+                                                Text(
+                                                    text = favorite.name,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                                Text(
+                                                    text = favorite.category,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(top = 2.dp)
+                                                )
+                                            }
+                                        }
+
+                                        // ✅ 新增：单个收藏项删除按钮（选择模式下隐藏）
+                                        if (!isInSelectionMode) {
+                                            IconButton(
+                                                onClick = {
+                                                    favoriteToDelete = favorite
+                                                    showDeleteSingleDialog = true
+                                                },
+                                                modifier = Modifier.size(20.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = "删除收藏",
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -395,5 +543,64 @@ fun FolderItem(
                 }
             }
         }
+    }
+
+    // ✅ 单个删除确认对话框
+    if (showDeleteSingleDialog && favoriteToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteSingleDialog = false },
+            title = { Text("删除收藏") },
+            text = { Text("确定要删除「${favoriteToDelete!!.name}」吗？") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.viewModelScope.launch {
+                            viewModel.deleteFavorite(favoriteToDelete!!)
+                            showDeleteSingleDialog = false
+                            favoriteToDelete = null
+                            Toast.makeText(context, "已删除收藏", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("删除")
+                }
+            },
+            dismissButton = {
+                Button(onClick = {
+                    showDeleteSingleDialog = false
+                    favoriteToDelete = null
+                }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    // ✅ 批量删除确认对话框
+    if (showDeleteBatchDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteBatchDialog = false },
+            title = { Text("批量删除收藏") },
+            text = { Text("确定要删除选中的 ${selectedFavorites.size} 个收藏吗？此操作不可恢复。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.viewModelScope.launch {
+                            deleteSelectedFavorites()
+                            showDeleteBatchDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("删除")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showDeleteBatchDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
